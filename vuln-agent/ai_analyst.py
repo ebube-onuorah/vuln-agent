@@ -5,6 +5,7 @@ Uses llama-3.3-70b-versatile via Groq (free tier: 500 req/day, no credit card re
 """
 
 import logging
+import time
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -122,12 +123,37 @@ def analyse_vulnerability(scan: ScanResult, cve: CVERecord) -> AIAnalysis:
 def analyse_all(scan: ScanResult, cves: list[CVERecord]) -> list[tuple[CVERecord, AIAnalysis]]:
     """
     Run AI analysis on all CVEs for a scan result.
-    Returns list of (CVERecord, AIAnalysis) tuples.
+
+    Only the top MAX_AI_ANALYSES CVEs (already sorted by exploit + CVSS) are sent
+    to Groq. Remaining CVEs get a description-only entry — no AI call — to stay
+    within the free-tier rate limit (500 req/day, ~30 req/min burst).
+
+    A 1-second delay is added between requests to avoid hitting the burst limit
+    mid-scan (observed at request ~26 without any pacing).
     """
     results = []
+    ai_cap = config.MAX_AI_ANALYSES
+
     for i, cve in enumerate(cves):
         logger.info(f"  [{i+1}/{len(cves)}] Analysing {cve.cve_id} (CVSS {cve.cvss_score})...")
-        analysis = analyse_vulnerability(scan, cve)
+
+        if i < ai_cap:
+            if i > 0:
+                time.sleep(config.AI_REQUEST_DELAY)
+            analysis = analyse_vulnerability(scan, cve)
+        else:
+            # Beyond cap: use the NVD description directly — accurate, no API cost
+            remediation_date = _calculate_remediation_date(cve.cvss_severity)
+            analysis = AIAnalysis(
+                summary=cve.description[:400],
+                solution=(
+                    "Refer to the NVD reference links for official remediation guidance. "
+                    "Apply the latest vendor security patch for the affected component."
+                ),
+                remediation_target=remediation_date,
+                confidence="low",
+            )
+
         results.append((cve, analysis))
     return results
 

@@ -43,6 +43,8 @@ MAX_SOFTWARE_SEARCHES: int = 15      # Max installed-software NVD searches per s
 GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 AI_MODEL: str = "llama-3.3-70b-versatile"   # Free tier: 500 req/day
 AI_MAX_TOKENS: int = 512               # Per CVE analysis
+MAX_AI_ANALYSES: int = 15             # Max CVEs to send to AI; rest use NVD description (avoids 429)
+AI_REQUEST_DELAY: float = 1.0         # Seconds between Groq requests (free tier burst limit)
 
 # ── Output ────────────────────────────────────────────────────────────────────
 BASE_DIR: Path = Path(__file__).parent

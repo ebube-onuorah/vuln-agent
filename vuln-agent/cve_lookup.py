@@ -4,6 +4,7 @@ Maps open ports/services to known CVEs. No API key required for basic use.
 API docs: https://nvd.nist.gov/developers/vulnerabilities
 """
 
+import re
 import time
 import logging
 from dataclasses import dataclass, field
@@ -108,6 +109,119 @@ _GENERIC_PORT_KEYWORDS: dict[int, str] = {
     8080: "http proxy",
     27017: "mongodb",
 }
+
+
+# ── Software search helpers ───────────────────────────────────────────────────
+
+# Internal sub-components that never appear as NVD entries.
+# Searching for these wastes rate-limit budget and returns false positives.
+_SKIP_SOFTWARE_PATTERNS: tuple[str, ...] = (
+    r"(?i)^vcpp_",                      # vcpp_crt.redist.clickonce
+    r"(?i)^vs_",                        # vs_FileTracker_Singleton
+    r"(?i)\bsingleton\b",
+    r"(?i)\bwmi provider\b",
+    r"(?i)\bsetup (configuration|wmi)\b",
+    r"(?i)\buniversal crt\b",
+    r"(?i)^update for .+\(kb\d+\)",     # Windows Update KB patches
+    r"(?i)\bclick-to-run\b",            # Office internal plumbing
+    r"(?i)\badd to path\b",             # Python sub-installer
+    r"(?i)\bpip bootstrap\b",
+    r"(?i)\btest suite\b",
+    r"(?i)\btcl[/\\]tk\b",
+    r"(?i)\bdevelopment libraries\b",
+    r"(?i)\bstandard library\b",
+    r"(?i)\bdocumentation \(",
+    r"(?i)\bexecutables \(",
+    r"(?i)\bcore interpreter\b",
+)
+
+
+def _should_skip_software(name: str) -> bool:
+    """Return True for internal sub-components that don't appear in NVD."""
+    return any(re.search(pat, name) for pat in _SKIP_SOFTWARE_PATTERNS)
+
+
+def _normalize_software_name(name: str) -> str:
+    """
+    Produce a clean NVD search keyword from a registry software name.
+    Strips locale tags, version numbers, architecture suffixes, and
+    collapses product-family variants so duplicates are caught before
+    they consume NVD rate-limit budget.
+
+    Examples:
+      "Microsoft Visual C++ 2022 X64 Additional Runtime - 14.44.35211"
+        -> "Microsoft Visual C++ 2022"
+      "Python 3.14.2 Core Interpreter (64-bit)"  -> "Python"
+      "MySQL Server 8.4"                         -> "MySQL Server"
+      "PuTTY release 0.83 (64-bit)"              -> "PuTTY"
+      "ImageMagick 7.1.2-13 Q16-HDRI (64-bit)"  -> "ImageMagick"
+    """
+    n = name
+    # Locale suffix: "- en-us", "- en-gb"
+    n = re.sub(r'\s*-\s*[a-z]{2}-[a-z]{2,4}\s*$', '', n, flags=re.IGNORECASE)
+    # VC++ runtime sub-variant: "X64 Additional Runtime ...", "X86 Debug Runtime ..."
+    n = re.sub(r'\s+(X64|X86)\s+(Additional|Debug|Minimum)\s+Runtime.*$', '', n, flags=re.IGNORECASE)
+    # "- version_number" trailing: "- 14.44.35211"
+    n = re.sub(r'\s*[-\u2013]\s*\d[\d.]+\s*.*$', '', n)
+    # "version X.Y.Z" / "release X.Y.Z" keywords
+    n = re.sub(r'\s+(version|release)\s+\d[\d.]+.*$', '', n, flags=re.IGNORECASE)
+    # Parenthetical suffix: "(64-bit)", "(2026-01-19)", "(10.1.0)"
+    n = re.sub(r'\s*\([^)]*\)\s*$', '', n)
+    # Year suffix: "Build Tools 2022", "FL Studio 2025"
+    n = re.sub(r'\s+20\d{2}$', '', n)
+    # M.m.p version in name: "Python 3.14.2 something" -> "Python"
+    n = re.sub(r'\s+\d+\.\d+\.\d+.*$', '', n)
+    # M.m version: "MySQL Server 8.4" -> "MySQL Server"
+    n = re.sub(r'\s+\d+\.\d+$', '', n)
+    return n.strip()
+
+
+# Publisher name fragment -> CPE vendor keyword
+# Used to filter software CVE results to only the correct vendor.
+_PUBLISHER_TO_VENDOR: dict[str, str] = {
+    "microsoft":  ":microsoft:",
+    "google":     ":google:",
+    "adobe":      ":adobe:",
+    "mozilla":    ":mozilla:",
+    "oracle":     ":oracle:",
+    "apple":      ":apple:",
+    "cisco":      ":cisco:",
+    "imagemagick":":imagemagick:",
+    "postgresql": ":postgresql:",
+    "mongodb":    ":mongodb:",
+    "putty":      ":simon_tatham:",   # PuTTY CPE vendor
+}
+
+
+def _cpe_matches_vendor(item: dict, publisher: str) -> bool:
+    """
+    When the software's publisher maps to a known CPE vendor, require that
+    vendor to appear in the CVE's CPE data. Falls through (True) for
+    publishers with no mapping — we can't filter what we don't know.
+    """
+    if not publisher:
+        return True
+
+    publisher_lower = publisher.lower()
+    vendor_kw: str | None = None
+    for pub_key, cpe_vendor in _PUBLISHER_TO_VENDOR.items():
+        if pub_key in publisher_lower:
+            vendor_kw = cpe_vendor
+            break
+
+    if not vendor_kw:
+        return True  # Unknown publisher — include all results
+
+    configurations = item.get("configurations", [])
+    if not configurations:
+        return True  # No CPE data — include rather than silently drop
+
+    for cfg in configurations:
+        for node in cfg.get("nodes", []):
+            for match in node.get("cpeMatch", []):
+                if vendor_kw in match.get("criteria", "").lower():
+                    return True
+    return False
 
 
 def _detect_platform(os_str: str) -> str:
@@ -344,6 +458,7 @@ def _parse_cve_item(
     service: str = "",
     platform: str = "unknown",
     installed_version: str = "",
+    publisher: str = "",
 ) -> CVERecord | None:
     """Parse a single NVD CVE item into a CVERecord, applying platform filter."""
     try:
@@ -352,6 +467,12 @@ def _parse_cve_item(
         # ── Platform filter (CPE-based) ────────────────────────────────────────
         if not _cpe_matches_platform(item, platform):
             return None  # CVE doesn't apply to this platform
+
+        # ── Vendor filter (publisher-based) ───────────────────────────────────
+        # For software-based searches, require CPE vendor to match the publisher.
+        # Prevents e.g. "Git" returning CVEs for unrelated tools that mention git.
+        if publisher and not _cpe_matches_vendor(item, publisher):
+            return None
 
         descriptions = item.get("descriptions", [])
         desc_text = next(
@@ -421,6 +542,7 @@ def fetch_cves_for_keyword(
     service: str = "",
     platform: str = "unknown",
     installed_version: str = "",
+    publisher: str = "",
 ) -> list[CVERecord]:
     """
     Query NVD for CVEs matching a keyword, filtered to the target platform.
@@ -472,6 +594,7 @@ def fetch_cves_for_keyword(
                     service=service,
                     platform=platform,
                     installed_version=installed_version,
+                    publisher=publisher,
                 )
                 if record and record.cvss_score > 0:
                     records.append(record)
@@ -523,31 +646,49 @@ def lookup_vulnerabilities(scan_result: ScanResult) -> list[CVERecord]:
                 all_cves.append(cve)
 
     # Search CVEs for software confirmed installed on the host.
-    # This replaces the old generic OS keyword search ("windows 11") which returned
-    # CVEs for any software that mentions Windows in its CPE — regardless of whether
-    # that software is actually present on the machine.
+    # Each installed program is normalized and deduplicated before searching NVD
+    # so that product-family variants (e.g. 8 VC++ runtime sub-packages) only
+    # consume one rate-limit slot, and internal sub-components are skipped entirely.
     if scan_result.installed_software:
-        # Prioritise Microsoft-published software first (most likely to have
-        # Windows platform CVEs), then alphabetically by name.
+        # Prioritise Microsoft-published software first, then alphabetically.
         software = sorted(
             scan_result.installed_software,
             key=lambda s: (0 if "microsoft" in s.publisher.lower() else 1, s.name.lower()),
         )
-        searched = 0
+        searched = 0          # Counts actual NVD API calls made
+        seen_normalized: set[str] = set()  # Deduplicates normalized product names
+
         for sw in software:
             if searched >= config.MAX_SOFTWARE_SEARCHES:
+                logger.debug(f"  Software search budget exhausted ({config.MAX_SOFTWARE_SEARCHES}), stopping")
                 break
-            logger.info(f"Looking up CVEs for installed software: '{sw.name}' (v{sw.version or '?'})")
-            # Use platform="unknown" — the software name is specific enough;
-            # vendor CPE filtering is not needed here and would drop non-Microsoft apps.
-            # Pass installed_version for accurate version-based filtering.
+
+            # Skip internal sub-components that have no NVD entries
+            if _should_skip_software(sw.name):
+                logger.debug(f"  Skipping internal component: '{sw.name}'")
+                continue
+
+            # Normalize name — strips version numbers, arch tags, locale suffixes
+            keyword = _normalize_software_name(sw.name)
+            if not keyword:
+                continue
+
+            # Deduplicate — e.g. all VC++ X64/X86 variants collapse to one search
+            if keyword in seen_normalized:
+                logger.debug(f"  Deduplicating: '{sw.name}' -> '{keyword}' (already searched)")
+                continue
+            seen_normalized.add(keyword)
+
+            searched += 1  # Count every API call against budget (not just hits)
+            logger.info(
+                f"Looking up CVEs for installed software: '{keyword}' (v{sw.version or '?'})"
+            )
             cves = fetch_cves_for_keyword(
-                sw.name,
+                keyword,
                 platform="unknown",
                 installed_version=sw.version,
+                publisher=sw.publisher,   # Enables vendor CPE filter for known publishers
             )
-            if cves:
-                searched += 1
             for cve in cves:
                 if cve.cve_id not in seen_ids:
                     seen_ids.add(cve.cve_id)

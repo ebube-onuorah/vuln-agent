@@ -65,7 +65,8 @@ def detect_os_local() -> str:
     """Detect OS on the local machine using PowerShell (Windows)."""
     try:
         result = subprocess.run(
-            ["powershell", "-Command",
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             "$ProgressPreference='SilentlyContinue';"
              "(Get-ComputerInfo | Select-Object -ExpandProperty OsName)"],
             capture_output=True, text=True, timeout=10
         )
