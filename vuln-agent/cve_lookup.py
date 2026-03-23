@@ -18,7 +18,10 @@ logger = logging.getLogger(__name__)
 
 # How long to sleep between NVD requests (rate limiting)
 # No key: 5 req/30s -> ~6s gap. With key: 50 req/30s -> ~0.6s gap
-_RATE_SLEEP = 0.7 if config.NVD_API_KEY else 6.5
+def _rate_sleep() -> float:
+    """Return the correct NVD rate-limit sleep at call time (not import time).
+    Lazy evaluation ensures tests that load dotenv after import get the right value."""
+    return 0.7 if config.NVD_API_KEY else 6.5
 
 
 @dataclass
@@ -34,6 +37,8 @@ class CVERecord:
     # Back-reference
     related_port: int = 0
     related_service: str = ""
+    # Actual product name extracted from NVD CPE data (not the search keyword)
+    nvd_affected_product: str = ""
 
 
 # ── Platform-specific search keywords per port ────────────────────────────────
@@ -200,7 +205,8 @@ def _extract_cvss(metrics: dict) -> tuple[float, str, str]:
             data = entry.get("cvssData", {})
             score = float(data.get("baseScore", 0.0))
             severity = data.get("baseSeverity", _severity_from_score(score)).lower()
-            ver = data.get("version", version_key[-3:].replace("V", ""))
+            _version_map = {"cvssMetricV31": "3.1", "cvssMetricV30": "3.0", "cvssMetricV2": "2.0"}
+            ver = data.get("version", _version_map.get(version_key, "N/A"))
             return score, severity, ver
     return 0.0, "none", "N/A"
 
@@ -215,15 +221,20 @@ def _has_public_exploit(cve_item: dict) -> bool:
     descriptions = cve_item.get("descriptions", [])
     refs = cve_item.get("references", [])
 
-    exploit_keywords = ("exploit", "actively exploited", "proof-of-concept", "poc", "metasploit")
+    # Keywords used only in URLs and reference tags — specific enough to be meaningful there.
+    # "exploit" is intentionally excluded from descriptions: it appears in virtually every
+    # NVD description ("an attacker could exploit this...") and would mark all CVEs as exploited.
+    ref_keywords = ("exploit", "actively exploited", "proof-of-concept", "poc", "metasploit")
     for ref in refs:
         url = ref.get("url", "").lower()
         tags = [t.lower() for t in ref.get("tags", [])]
-        if any(k in url or k in " ".join(tags) for k in exploit_keywords):
+        if any(k in url or k in " ".join(tags) for k in ref_keywords):
             return True
 
+    # Only check descriptions for the more specific signals — not bare "exploit"
+    desc_keywords = ("actively exploited", "proof-of-concept", "poc", "metasploit")
     for desc in descriptions:
-        if any(k in desc.get("value", "").lower() for k in exploit_keywords):
+        if any(k in desc.get("value", "").lower() for k in desc_keywords):
             return True
 
     return False
@@ -302,6 +313,31 @@ def _parse_version(version_str: str) -> tuple:
     return tuple(result)
 
 
+def _extract_product_from_cpes(item: dict) -> str:
+    """
+    Extract the primary affected product name(s) from NVD CPE data.
+    CPE format: cpe:2.3:type:vendor:product:version:...
+    Returns a human-readable string like "Microsoft Windows, Microsoft Task Scheduler".
+    Used by the AI analyst to anchor summaries to the real affected component,
+    not the port keyword that was used to discover the CVE.
+    """
+    configurations = item.get("configurations", [])
+    seen: list[str] = []
+    for cfg in configurations:
+        for node in cfg.get("nodes", []):
+            for match in node.get("cpeMatch", []):
+                cpe = match.get("criteria", "")
+                parts = cpe.split(":")
+                if len(parts) >= 5:
+                    vendor = parts[3].replace("_", " ").title()
+                    product = parts[4].replace("_", " ").title()
+                    if product and product != "*":
+                        label = f"{vendor} {product}"
+                        if label not in seen:
+                            seen.append(label)
+    return ", ".join(seen[:3]) if seen else ""
+
+
 def _parse_cve_item(
     item: dict,
     port: int = 0,
@@ -372,8 +408,9 @@ def _parse_cve_item(
             published=published,
             related_port=port,
             related_service=service,
+            nvd_affected_product=_extract_product_from_cpes(item),
         )
-    except (KeyError, TypeError) as e:
+    except Exception as e:
         logger.warning(f"Failed to parse CVE item: {e}")
         return None
 
@@ -400,28 +437,48 @@ def fetch_cves_for_keyword(
     }
 
     try:
-        time.sleep(_RATE_SLEEP)
-        response = requests.get(
-            config.NVD_BASE_URL,
-            params=params,
-            headers=headers,
-            timeout=15,
-        )
-        response.raise_for_status()
-        data = response.json()
-
         records = []
-        for item in data.get("vulnerabilities", []):
-            cve_data = item.get("cve", {})
-            record = _parse_cve_item(
-                cve_data,
-                port=port,
-                service=service,
-                platform=platform,
-                installed_version=installed_version,
+        start_index = 0
+
+        while True:
+            time.sleep(_rate_sleep())
+            page_params = {**params, "startIndex": start_index}
+            response = requests.get(
+                config.NVD_BASE_URL,
+                params=page_params,
+                headers=headers,
+                timeout=15,
             )
-            if record and record.cvss_score > 0:
-                records.append(record)
+
+            # Detect rate-limit responses before raising generically
+            if response.status_code in (429, 403):
+                logger.error(
+                    f"NVD rate limit hit for '{keyword}' (HTTP {response.status_code}). "
+                    f"Add NVD_API_KEY to .env to raise the limit from 5 to 50 req/30s."
+                )
+                break
+
+            response.raise_for_status()
+            data = response.json()
+
+            total = data.get("totalResults", 0)
+            vulnerabilities = data.get("vulnerabilities", [])
+
+            for item in vulnerabilities:
+                cve_data = item.get("cve", {})
+                record = _parse_cve_item(
+                    cve_data,
+                    port=port,
+                    service=service,
+                    platform=platform,
+                    installed_version=installed_version,
+                )
+                if record and record.cvss_score > 0:
+                    records.append(record)
+
+            start_index += len(vulnerabilities)
+            if start_index >= total or not vulnerabilities:
+                break  # All pages fetched
 
         records.sort(key=lambda r: r.cvss_score, reverse=True)
         return records[:config.MAX_CVES_PER_SERVICE]
@@ -489,7 +546,8 @@ def lookup_vulnerabilities(scan_result: ScanResult) -> list[CVERecord]:
                 platform="unknown",
                 installed_version=sw.version,
             )
-            searched += 1
+            if cves:
+                searched += 1
             for cve in cves:
                 if cve.cve_id not in seen_ids:
                     seen_ids.add(cve.cve_id)

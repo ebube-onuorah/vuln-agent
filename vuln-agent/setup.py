@@ -106,9 +106,11 @@ def configure_env():
 
     nvd_key = input("\n  NVD API key (optional, press Enter to skip): ").strip()
 
-    # Write .env
+    # Write to temp file then replace — prevents truncated key if Ctrl+C mid-write
     env_content = f"GROQ_API_KEY={key}\nNVD_API_KEY={nvd_key}\n"
-    ENV_FILE.write_text(env_content)
+    tmp = ENV_FILE.with_suffix(".tmp")
+    tmp.write_text(env_content)
+    tmp.replace(ENV_FILE)
     ok(".env created")
 
 
@@ -125,8 +127,9 @@ def smoke_test():
     try:
         from groq import Groq
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        import config
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=config.AI_MODEL,
             max_tokens=50,
             messages=[{"role": "user", "content": "Reply with only: OK"}]
         )

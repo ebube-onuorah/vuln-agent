@@ -15,10 +15,14 @@ from scanner import ScanResult
 logger = logging.getLogger(__name__)
 
 DB_PATH = config.BASE_DIR / "vuln-agent.db"
+_db_initialized = False
 
 
 def init_db() -> None:
-    """Create database schema if it doesn't exist."""
+    """Create database schema if it doesn't exist. No-op after first call."""
+    global _db_initialized
+    if _db_initialized:
+        return
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
@@ -47,6 +51,7 @@ def init_db() -> None:
             """
         )
         conn.commit()
+        _db_initialized = True
         logger.debug("Database schema initialized")
 
 

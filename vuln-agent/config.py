@@ -15,7 +15,7 @@ TARGETS: list[str] = [
 
 SCAN_PORTS: range = range(1, 1025)   # Common ports 1-1024
 BANNER_GRAB_TIMEOUT: float = 1.0     # Seconds to wait for service banner
-CONNECT_TIMEOUT: float = 0.3         # Seconds for TCP connect attempt (0.3 = fast for local; increase for remote)
+CONNECT_TIMEOUT: float = 1.5         # Seconds for TCP connect attempt (1.5 covers LAN + remote hosts up to ~1s RTT)
 
 # ── Scheduling ────────────────────────────────────────────────────────────────
 # Options: "daily", "weekly", "12h", "6h", "30m"
@@ -50,8 +50,10 @@ REPORTS_DIR: Path = BASE_DIR / "reports"
 CACHE_DIR: Path = BASE_DIR / "cache"
 STATE_FILE: Path = BASE_DIR / "STATE.md"
 
-REPORTS_DIR.mkdir(exist_ok=True)
-CACHE_DIR.mkdir(exist_ok=True)
+def ensure_dirs() -> None:
+    """Create output directories. Called by agent.py at startup, not at import time."""
+    REPORTS_DIR.mkdir(exist_ok=True)
+    CACHE_DIR.mkdir(exist_ok=True)
 
 # ── Excel Styling ─────────────────────────────────────────────────────────────
 EXCEL_HEADER_COLOR: str = "1F3864"   # Dark navy

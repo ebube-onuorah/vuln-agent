@@ -1,0 +1,189 @@
+================================================================
+  VulnAgent - AI Vulnerability Scanner
+  Built by Ebube Onuorah
+  Instructions for Setup and Use
+================================================================
+
+
+----------------------------------------------------------------
+WHAT IT DOES
+----------------------------------------------------------------
+VulnAgent scans your computer (or any IP on your network) for
+open ports, looks up known vulnerabilities (CVEs) from the NIST
+National Vulnerability Database, and uses AI to explain each
+finding and suggest a fix. Results are saved as an Excel report.
+
+
+----------------------------------------------------------------
+REQUIREMENTS
+----------------------------------------------------------------
+  - Python 3.10 or later
+  - Internet connection (to reach NIST NVD and Groq AI)
+  - A free Groq API key (for AI summaries)
+  - Optional: A free NVD API key (makes scans ~10x faster)
+
+
+----------------------------------------------------------------
+FIRST-TIME SETUP  (do this once)
+----------------------------------------------------------------
+
+Step 1 - Get your free Groq API key
+  1. Go to: https://console.groq.com
+  2. Sign up for a free account
+  3. Click "API Keys" and create a new key
+  4. Copy the key (starts with gsk_...)
+
+Step 2 - Get your free NVD API key (optional but recommended)
+  1. Go to: https://nvd.nist.gov/developers/request-an-api-key
+  2. Fill in the form and submit
+  3. Check your email for the key (usually arrives in minutes)
+
+Step 3 - Run the setup script
+  1. Open a Command Prompt in this folder
+     (Right-click the folder > "Open in Terminal" or
+      search for "cmd" in Start, then cd to this folder)
+  2. Type: python setup.py
+  3. Press Enter and follow the prompts
+     (It will ask for your API keys and install all packages)
+
+
+----------------------------------------------------------------
+RUNNING A SCAN
+----------------------------------------------------------------
+
+Open a Command Prompt in this folder, then type one of:
+
+  Scan your own computer:
+    python agent.py --scan
+
+  Scan a specific IP address:
+    python agent.py --scan --target 192.168.1.1
+
+  Re-generate the Excel report from the last scan (no rescan):
+    python agent.py --report
+
+  Show help and all options:
+    python agent.py --help
+
+
+----------------------------------------------------------------
+SCHEDULED SCANS (automatic recurring scans)
+----------------------------------------------------------------
+
+To run a scan automatically on a schedule, type:
+
+  Every day at 9:00 AM (default):
+    python agent.py --schedule
+
+  Every day at a specific time:
+    python agent.py --schedule --interval daily --time 14:00
+
+  Every week on a specific day and time:
+    python agent.py --schedule --interval weekly --day friday --time 08:00
+
+  Every 6 hours:
+    python agent.py --schedule --interval 6h
+
+  Every 30 minutes:
+    python agent.py --schedule --interval 30m
+
+NOTE: Keep the Command Prompt window open while the scheduler
+      is running. Closing it will stop the schedule.
+
+
+----------------------------------------------------------------
+WHERE TO FIND YOUR REPORTS
+----------------------------------------------------------------
+
+Excel reports are saved to the "reports" folder inside this
+directory. Each report is named with the date and time it
+was generated.
+
+Open the .xlsx file with Microsoft Excel or Google Sheets.
+
+The report contains:
+  - IP Address and detected OS
+  - CVE name and CVSS severity score (0-10)
+  - AI-written summary of the vulnerability
+  - Recommended fix / remediation steps
+  - Deadline to fix (based on severity)
+  - Link to the official NVD reference
+
+
+----------------------------------------------------------------
+UNDERSTANDING SEVERITY SCORES (CVSS)
+----------------------------------------------------------------
+
+  9.0 - 10.0  CRITICAL  Fix within 7 days
+  7.0 -  8.9  HIGH      Fix within 30 days
+  4.0 -  6.9  MEDIUM    Fix within 90 days
+  0.1 -  3.9  LOW       Fix within 180 days
+
+
+----------------------------------------------------------------
+ADDING MORE SCAN TARGETS
+----------------------------------------------------------------
+
+Open config.py in Notepad (or any text editor) and find the
+TARGETS section near the top:
+
+  TARGETS = [
+      "127.0.0.1",          # Your computer
+      # "192.168.1.1",      # Remove the # to add your router
+  ]
+
+Remove the # at the start of any line to enable that target,
+or add a new line with your IP address inside the quotes.
+Save the file, then run the scan again.
+
+
+----------------------------------------------------------------
+SCAN WITHOUT AN NVD API KEY
+----------------------------------------------------------------
+
+If you skipped the NVD API key, scans will still work but
+will take longer (roughly 2-3 minutes instead of ~12 seconds).
+You can add the key at any time by re-running python setup.py
+or by editing the .env file directly.
+
+
+----------------------------------------------------------------
+COMMON ERRORS
+----------------------------------------------------------------
+
+"GROQ_API_KEY not set"
+  -> Re-run python setup.py and enter your Groq API key.
+     Or open the .env file and add: GROQ_API_KEY=gsk_yourkey
+
+"Connection refused" or "timed out" for a target
+  -> The IP address is unreachable or offline. Check the
+     target is correct and on your network.
+
+"Excel file is locked"
+  -> Close the report in Excel before running a new scan,
+     then try again.
+
+"ModuleNotFoundError"
+  -> Run: pip install -r requirements.txt
+
+
+----------------------------------------------------------------
+PROJECT FILES (for reference)
+----------------------------------------------------------------
+
+  agent.py        Main program — run this to scan or schedule
+  config.py       Settings: targets, ports, schedule, thresholds
+  scanner.py      Port scanner and OS detection
+  cve_lookup.py   Fetches CVE data from NIST NVD
+  ai_analyst.py   AI summary and remediation using Groq
+  reporter.py     Generates the Excel report
+  scheduler.py    Handles automatic recurring scans
+  setup.py        First-time setup wizard
+  .env            Your API keys (keep this private)
+  reports/        Folder where Excel reports are saved
+  cache/          Temporary scan data (safe to delete)
+
+
+----------------------------------------------------------------
+  GitHub: https://github.com/ebube-tech/vuln-agent
+----------------------------------------------------------------

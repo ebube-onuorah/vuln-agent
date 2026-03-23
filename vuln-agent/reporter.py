@@ -55,9 +55,9 @@ def _thin_border() -> Border:
     return Border(left=thin, right=thin, top=thin, bottom=thin)
 
 
-def _style_header_row(ws, num_cols: int) -> None:
+def _style_header_row(ws, num_cols: int, row: int = 3) -> None:
     for col_idx in range(1, num_cols + 1):
-        cell = ws.cell(row=1, column=col_idx)
+        cell = ws.cell(row=row, column=col_idx)
         cell.font = Font(
             name="Calibri", bold=True, color="FFFFFF", size=11
         )
@@ -111,7 +111,7 @@ def _build_row(
         "Summary":            analysis.summary,
         "Solution":           analysis.solution,
         "Public_Exploit":     "Yes" if cve.public_exploit else "No",
-        "Vulnerability":      f"{cve.related_service.upper()} (port {cve.related_port}) — {cve.cvss_severity.upper()}",
+        "Vulnerability":      f"{(cve.nvd_affected_product or cve.related_service).upper()} (port {cve.related_port}) — {cve.cvss_severity.upper()}",
         "Reference":          reference,
     }
 
@@ -186,7 +186,7 @@ def generate_report(
     # Write to temp file then rename to avoid Excel file-lock issues
     tmp_path = output_path.with_suffix(".tmp.xlsx")
     wb.save(tmp_path)
-    tmp_path.rename(output_path)
+    tmp_path.replace(output_path)  # replace() is atomic on POSIX and overwrites on Windows
 
     logger.info(f"Report saved: {output_path}")
     return output_path
@@ -222,7 +222,7 @@ def _write_summary_sheet(ws, data: list) -> None:
     for row_idx, (label, value) in enumerate(rows, start=1):
         ws.cell(row=row_idx, column=1, value=label)
         ws.cell(row=row_idx, column=2, value=value)
-        if not value:  # section headers
+        if value == "":  # section headers only (not rows with 0 count)
             ws.cell(row=row_idx, column=1).font = Font(bold=True)
 
 

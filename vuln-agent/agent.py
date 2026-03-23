@@ -82,6 +82,7 @@ def _save_cache(scan: ScanResult, cves: list[CVERecord]) -> None:
                     "public_exploit": c.public_exploit,
                     "related_port": c.related_port,
                     "related_service": c.related_service,
+                    "nvd_affected_product": c.nvd_affected_product,
                     "references": c.references,
                 }
                 for c in cves
@@ -96,11 +97,6 @@ def _save_cache(scan: ScanResult, cves: list[CVERecord]) -> None:
 def _update_state(scans: list[ScanResult], total_findings: int, report_path: Path) -> None:
     """Update STATE.md with latest scan metadata."""
     try:
-        critical = 0
-        high = 0
-        medium = 0
-        low = 0
-
         state_content = f"""# VulnAgent — Scan State
 
 ## Last Scan
@@ -147,72 +143,77 @@ def run_full_scan(target_override: str | None = None) -> Path:
     logger.info("Starting vulnerability scan")
     logger.info("=" * 60)
 
-    # Override target if specified
+    # Override target if specified — restored in finally to survive exceptions
     original_targets = config.TARGETS[:]
     if target_override:
         config.TARGETS = [target_override]
 
-    # ── Phase 1: Scan ─────────────────────────────────────────────────────────
-    logger.info("Phase 1/3: Network scanning...")
-    all_scans = scan_all_targets()
+    try:
+        # ── Phase 1: Scan ─────────────────────────────────────────────────────
+        logger.info("Phase 1/3: Network scanning...")
+        all_scans = scan_all_targets()
 
-    total_open_ports = sum(len(s.open_ports) for s in all_scans)
-    logger.info(f"Scan complete: {len(all_scans)} target(s), {total_open_ports} open port(s)")
+        total_open_ports = sum(len(s.open_ports) for s in all_scans)
+        logger.info(f"Scan complete: {len(all_scans)} target(s), {total_open_ports} open port(s)")
 
-    # ── Phase 2: CVE Lookup ───────────────────────────────────────────────────
-    logger.info("Phase 2/3: CVE lookup via NIST NVD...")
-    all_findings: list[tuple[ScanResult, CVERecord, AIAnalysis]] = []
+        # ── Phase 2: CVE Lookup ───────────────────────────────────────────────
+        logger.info("Phase 2/3: CVE lookup via NIST NVD...")
+        all_findings: list[tuple[ScanResult, CVERecord, AIAnalysis]] = []
 
-    scan_cve_pairs: list[tuple[ScanResult, list[CVERecord]]] = []
-    for scan in all_scans:
-        if not scan.open_ports:
-            logger.info(f"  {scan.ip}: No open ports — skipping CVE lookup")
-            continue
-        cves = lookup_vulnerabilities(scan)
-        _save_cache(scan, cves)
-        scan_cve_pairs.append((scan, cves))
+        scan_cve_pairs: list[tuple[ScanResult, list[CVERecord]]] = []
+        for scan in all_scans:
+            if not scan.open_ports:
+                logger.info(f"  {scan.ip}: No open ports — skipping CVE lookup")
+                log_scan(scan, [])  # Log clean scan once here; no further logging needed
+            else:
+                cves = lookup_vulnerabilities(scan)
+                _save_cache(scan, cves)
+                scan_cve_pairs.append((scan, cves))
 
-    total_cves = sum(len(cves) for _, cves in scan_cve_pairs)
-    logger.info(f"CVE lookup complete: {total_cves} CVE(s) found")
+        total_cves = sum(len(cves) for _, cves in scan_cve_pairs)
+        logger.info(f"CVE lookup complete: {total_cves} CVE(s) found")
 
-    # ── Phase 3: AI Analysis ──────────────────────────────────────────────────
-    if total_cves == 0:
-        logger.info("Phase 3/3: No CVEs to analyse — skipping AI step")
-    else:
-        logger.info(f"Phase 3/3: AI analysis ({total_cves} CVE(s))...")
-        for scan, cves in scan_cve_pairs:
-            analysed = analyse_all(scan, cves)
-            for cve, analysis in analysed:
-                all_findings.append((scan, cve, analysis))
-            # Log scan results to trend database for historical tracking
-            log_scan(scan, cves)
+        # ── Phase 3: AI Analysis ──────────────────────────────────────────────
+        if total_cves == 0:
+            logger.info("Phase 3/3: No CVEs to analyse — skipping AI step")
+            # Log port-only scans (open ports but all CVEs filtered out) once
+            for scan, cves in scan_cve_pairs:
+                log_scan(scan, cves)
+        else:
+            logger.info(f"Phase 3/3: AI analysis ({total_cves} CVE(s))...")
+            for scan, cves in scan_cve_pairs:
+                analysed = analyse_all(scan, cves)
+                for cve, analysis in analysed:
+                    all_findings.append((scan, cve, analysis))
+                log_scan(scan, cves)  # Log once after analysis with full CVE list
 
-    # ── Report generation ──────────────────────────────────────────────────────
-    logger.info("Generating Excel report...")
-    report_path = generate_report(all_findings)
+        # ── Report generation ─────────────────────────────────────────────────
+        logger.info("Generating Excel report...")
+        report_path = generate_report(all_findings)
 
-    # ── State update ───────────────────────────────────────────────────────────
-    _update_state(all_scans, len(all_findings), report_path)
+        # ── State update ──────────────────────────────────────────────────────
+        _update_state(all_scans, len(all_findings), report_path)
 
-    # ── Trend summary ──────────────────────────────────────────────────────────
-    cleanup_old_scans(days=90)  # Keep DB size reasonable
-    trend = get_trend_summary(days=30)
-    if trend:
-        logger.info(
-            f"30-day trend: {trend['scans']} scan(s), "
-            f"{trend['avg_cves_per_scan']} avg CVEs/scan, "
-            f"{trend['critical_cves']} critical, {trend['exploited_cves']} exploited"
-        )
+        # ── Trend summary ─────────────────────────────────────────────────────
+        cleanup_old_scans(days=90)  # Keep DB size reasonable
+        trend = get_trend_summary(days=30)
+        if trend:
+            logger.info(
+                f"30-day trend: {trend['scans']} scan(s), "
+                f"{trend['avg_cves_per_scan']} avg CVEs/scan, "
+                f"{trend['critical_cves']} critical, {trend['exploited_cves']} exploited"
+            )
 
-    duration = (datetime.now() - start_time).seconds
-    logger.info(f"Done in {duration}s. Report: {report_path}")
-    logger.info("=" * 60)
+        duration = (datetime.now() - start_time).total_seconds()
+        logger.info(f"Done in {duration:.0f}s. Report: {report_path}")
+        logger.info("=" * 60)
 
-    # Restore targets if overridden
-    if target_override:
-        config.TARGETS = original_targets
+        return report_path
 
-    return report_path
+    finally:
+        # Always restore targets even if an exception aborts the scan
+        if target_override:
+            config.TARGETS = original_targets
 
 
 def main() -> None:
@@ -252,7 +253,8 @@ Examples:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # Validate configuration before running any operations
+    # Create output directories and validate configuration before any operations
+    config.ensure_dirs()
     if not validate_config():
         sys.exit(1)
 

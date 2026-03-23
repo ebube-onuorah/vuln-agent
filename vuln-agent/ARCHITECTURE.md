@@ -5,7 +5,7 @@
 |-----------|--------|-----------|
 | Cost | $3,990+/year | Free |
 | Source | Closed binary | Open Python |
-| AI Analysis | None | Claude AI contextual summaries |
+| AI Analysis | None | Groq LLaMA 3.3 contextual summaries |
 | Learning value | Zero | Every module you built |
 | Customization | Limited | Full control |
 | Remediation | Generic | AI-prioritized with SLA dates |
@@ -17,27 +17,36 @@
 config.py (targets, schedule)
        │
        ▼
+  validation.py ──► startup config + API key checks
+       │
+       ▼
   agent.py  ──────────────────────────────────────┐
   (orchestrator)                                    │
        │                                            │
        ├──► scanner.py          ──► raw_findings[]  │
        │    (socket port scan,                      │
        │     PowerShell OS detect,                  │
-       │     DNS reverse lookup)                    │
+       │     DNS reverse lookup,                    │
+       │     installed software inventory)          │
        │                                            │
        ├──► cve_lookup.py       ──► cve_data[]      │
        │    (NIST NVD API v2,                       │
        │     maps service/port → CVE list,          │
-       │     fetches CVSS, public exploit flag)     │
+       │     fetches CVSS, public exploit flag,     │
+       │     CPE-based product validation)          │
        │                                            │
        ├──► ai_analyst.py       ──► ai_output[]     │
-       │    (Claude claude-haiku-4-5,                      │
+       │    (Groq llama-3.3-70b-versatile,          │
        │     generates summary, solution,           │
        │     remediation target date)               │
        │                                            │
        ├──► reporter.py         ──► .xlsx file      │
        │    (merges all data,                       │
        │     writes Excel report)                   │
+       │                                            │
+       ├──► trend.py            ──► vuln-agent.db   │
+       │    (SQLite: logs each scan,                │
+       │     30-day rolling trend summary)          │
        │                                            │
        └──► STATE.md updated                        │
                                                     │
@@ -54,9 +63,10 @@ config.py (targets, schedule)
 @dataclass
 class ScanResult:
     ip: str
-    dns_name: str        # reverse DNS, "" if not found
-    os: str              # OS string or "Unknown"
+    dns_name: str                    # reverse DNS, "" if not found
+    os: str                          # OS string or "Unknown"
     open_ports: list[PortInfo]
+    installed_software: list[SoftwareInfo]  # PowerShell registry inventory
 
 @dataclass
 class PortInfo:
@@ -64,6 +74,12 @@ class PortInfo:
     service: str         # "http", "ssh", "ftp", etc.
     banner: str          # grabbed banner if available
     state: str           # "open"
+
+@dataclass
+class SoftwareInfo:
+    name: str
+    version: str
+    publisher: str
 ```
 
 ### cve_lookup.py
@@ -72,13 +88,16 @@ class PortInfo:
 ```python
 @dataclass
 class CVERecord:
-    cve_id: str           # "CVE-2024-1234"
-    description: str      # raw NVD description
-    cvss_score: float     # 0.0-10.0
-    cvss_severity: str    # critical/high/medium/low
-    public_exploit: bool  # from NVD exploitability data
-    references: list[str] # NVD URLs
+    cve_id: str               # "CVE-2024-1234"
+    description: str          # raw NVD description
+    cvss_score: float         # 0.0-10.0
+    cvss_severity: str        # critical/high/medium/low
+    cvss_version: str         # "3.1", "3.0", or "2.0"
+    public_exploit: bool      # CISA KEV + NVD reference signals
+    references: list[str]     # NVD URLs
     published: datetime
+    related_service: str      # port/service that triggered the lookup
+    nvd_affected_product: str # vendor + product extracted from CPE data
 ```
 
 ### ai_analyst.py
@@ -93,8 +112,8 @@ class AIAnalysis:
 ```
 
 ### reporter.py
-**Input:** `list[VulnRow]` (merged data)
-**Output:** `./reports/vuln_report_YYYY-MM-DD.xlsx`
+**Input:** merged scan + CVE + AI data per row
+**Output:** `./reports/vuln_report_YYYY-MM-DD_HH-MM.xlsx`
 
 **Excel Schema (13 columns):**
 | Col | Field | Source |
@@ -107,11 +126,21 @@ class AIAnalysis:
 | F | CVE_Name | NVD |
 | G | CVSS_Score | NVD |
 | H | Remediation_Target | AI (CVSS × SLA config) |
-| I | Summary | Claude AI |
-| J | Solution | Claude AI + NVD |
+| I | Summary | Groq AI |
+| J | Solution | Groq AI + NVD |
 | K | Public_Exploit | NVD boolean → "Yes"/"No" |
-| L | Vulnerability | port/service description |
+| L | Vulnerability | nvd_affected_product or port/service |
 | M | Reference | NVD URL |
+
+### validation.py
+**Input:** `config` module values
+**Output:** `bool` — `True` if all required config present, `False` otherwise
+**Checks:** `GROQ_API_KEY` (required), `NVD_API_KEY` (optional warning), `TARGETS`, `SCAN_PORTS`, `MAX_SOFTWARE_SEARCHES`
+
+### trend.py
+**Input:** `ScanResult`, `list[CVERecord]`
+**Output:** SQLite rows in `vuln-agent.db`
+**Queries:** `get_trend_summary(days=30)` → `{scans, avg_cves_per_scan, critical_cves, exploited_cves}`
 
 ### scheduler.py
 **Input:** `config.SCHEDULE_INTERVAL`, `config.SCHEDULE_TIME`
@@ -121,34 +150,44 @@ class AIAnalysis:
 ## Directory Layout
 ```
 vuln-agent/
-├── CLAUDE.md              # Claude Code instructions
-├── ARCHITECTURE.md        # This file
-├── STATE.md               # Scan state (auto-updated)
-├── .env                   # ANTHROPIC_API_KEY, NVD_API_KEY
-├── .env.example           # Template (committed)
+├── CLAUDE.md                  # Claude Code instructions
+├── ARCHITECTURE.md            # This file
+├── STATE.md                   # Scan state (auto-updated)
+├── .env                       # GROQ_API_KEY, NVD_API_KEY (never committed)
+├── .env.example               # Template (committed)
 ├── .gitignore
-├── requirements.txt
-├── config.py              # User configuration
-├── agent.py               # Orchestrator + CLI entry point
-├── scanner.py             # Network scanning
-├── cve_lookup.py          # NIST NVD API client
-├── ai_analyst.py          # Claude AI integration
-├── reporter.py            # Excel report generator
-├── scheduler.py           # Interval scheduling
-├── cache/                 # JSON cache of scan results
+├── requirements.txt           # Runtime dependencies
+├── requirements-dev.txt       # Dev/test dependencies (includes pytest)
+├── config.py                  # User configuration
+├── agent.py                   # Orchestrator + CLI entry point
+├── scanner.py                 # Network scanning + software inventory
+├── cve_lookup.py              # NIST NVD API client + CPE validation
+├── ai_analyst.py              # Groq AI integration
+├── reporter.py                # Excel report generator
+├── scheduler.py               # Interval scheduling
+├── validation.py              # Startup config validation
+├── trend.py                   # SQLite trend tracking
+├── setup.py                   # Interactive first-run setup wizard
+├── generate_demo_report.py    # Demo Excel report for portfolio
+├── tests/
+│   ├── test_cve_lookup.py     # Version parsing + CPE extraction tests
+│   └── test_trend.py          # Trend DB isolation tests
+├── cache/                     # JSON cache of scan results
 │   └── scan_YYYY-MM-DD.json
-└── reports/               # Generated Excel files
-    └── vuln_report_YYYY-MM-DD.xlsx
+└── reports/                   # Generated Excel files
+    └── vuln_report_YYYY-MM-DD_HH-MM.xlsx
 ```
 
 ## API References
 - **NIST NVD API v2:** `https://services.nvd.nist.gov/rest/json/cves/2.0`
   - Rate: 5 req/30s (no key), 50 req/30s (with key)
   - Filter by keyword: `?keywordSearch=apache`
+  - Pagination: `startIndex` + `totalResults` handled automatically
   - No auth required for basic use
-- **Anthropic API:** `claude-haiku-4-5` model, ~$1/1M tokens
+- **Groq API:** `llama-3.3-70b-versatile` model, free tier: 500 req/day
   - Used for: summary, solution, remediation date
-  - Prompt: system + one CVERecord per call (batch to save tokens)
+  - Prompt: system + one CVERecord per call
+  - Key: `GROQ_API_KEY` in `.env`
 
 ## Security Notes
 - Agent scans only targets listed in `config.TARGETS`
@@ -156,3 +195,4 @@ vuln-agent/
 - No credentials stored — `.env` excluded from git
 - Socket scanning is non-intrusive (SYN equivalent via connect())
 - All output stays local — no external reporting endpoints
+- NVD CPE filtering anchors AI summaries to actual affected products

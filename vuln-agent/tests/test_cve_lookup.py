@@ -8,7 +8,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from cve_lookup import _parse_version, _version_matches_range
+from cve_lookup import _parse_version, _version_matches_range, _extract_product_from_cpes
 
 
 def test_parse_version():
@@ -57,8 +57,49 @@ def test_version_comparison():
     print("[PASS] Version comparison tests passed")
 
 
+def test_extract_product_from_cpes():
+    """Test that real affected product is extracted from NVD CPE data."""
+    # Standard CPE with vendor + product
+    item = {
+        "configurations": [{
+            "nodes": [{
+                "cpeMatch": [
+                    {"criteria": "cpe:2.3:a:microsoft:task_scheduler:*:*:*:*:*:*:*:*"},
+                    {"criteria": "cpe:2.3:a:microsoft:windows:10:*:*:*:*:*:*:*"},
+                ]
+            }]
+        }]
+    }
+    result = _extract_product_from_cpes(item)
+    assert "Microsoft Task Scheduler" in result
+    assert "Microsoft Windows" in result
+
+    # No CPE data — returns empty string
+    assert _extract_product_from_cpes({}) == ""
+    assert _extract_product_from_cpes({"configurations": []}) == ""
+
+    # Wildcard-only product — excluded
+    item_wildcard = {
+        "configurations": [{"nodes": [{"cpeMatch": [
+            {"criteria": "cpe:2.3:a:vendor:*:*:*:*:*:*:*:*:*"}
+        ]}]}]
+    }
+    assert _extract_product_from_cpes(item_wildcard) == ""
+
+    # Deduplication — same vendor+product appears multiple times
+    item_dupes = {
+        "configurations": [{"nodes": [{"cpeMatch": [
+            {"criteria": "cpe:2.3:a:apache:http_server:2.4.50:*:*:*:*:*:*:*"},
+            {"criteria": "cpe:2.3:a:apache:http_server:2.4.51:*:*:*:*:*:*:*"},
+        ]}]}]
+    }
+    result = _extract_product_from_cpes(item_dupes)
+    assert result.count("Apache Http Server") == 1
+
+
 if __name__ == "__main__":
     test_parse_version()
     test_version_matching()
     test_version_comparison()
+    test_extract_product_from_cpes()
     print("\n[PASS] All CVE lookup tests passed!")

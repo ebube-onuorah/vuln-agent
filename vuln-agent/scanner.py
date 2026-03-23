@@ -83,8 +83,13 @@ def detect_os_local() -> str:
 def detect_os_ttl(ip: str) -> str:
     """Estimate OS from ping TTL (heuristic, not definitive)."""
     try:
+        import platform
+        if platform.system() == "Windows":
+            cmd = ["ping", "-n", "1", "-w", "1000", ip]
+        else:
+            cmd = ["ping", "-c", "1", "-W", "1", ip]
         result = subprocess.run(
-            ["ping", "-n", "1", "-w", "1000", ip],
+            cmd,
             capture_output=True, text=True, timeout=5
         )
         output = result.stdout
@@ -153,8 +158,9 @@ def grab_banner(ip: str, port: int) -> str:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(config.BANNER_GRAB_TIMEOUT)
             s.connect((ip, port))
-            # Send HTTP request for web ports
-            if port in (80, 8080, 8443, 443):
+            # Send HTTP probe only on plain HTTP ports — 443/8443 require TLS
+            # handshake first; sending raw HTTP bytes gets no response and wastes timeout.
+            if port in (80, 8080):
                 s.send(b"HEAD / HTTP/1.0\r\n\r\n")
             banner = s.recv(1024).decode("utf-8", errors="ignore").strip()
             return banner[:200]  # Truncate long banners
@@ -172,6 +178,10 @@ def scan_port(ip: str, port: int) -> PortInfo | None:
                 service = PORT_SERVICES.get(port, f"port-{port}")
                 banner = grab_banner(ip, port)
                 return PortInfo(port=port, service=service, banner=banner)
+    except OSError as e:
+        # Log unexpected OS-level errors (e.g. EMFILE: too many open files)
+        # so incomplete scans are visible rather than silently returning fewer results.
+        logger.warning(f"OS error scanning {ip}:{port}: {e}")
     except Exception:
         pass
     return None
@@ -195,10 +205,13 @@ def scan_target(ip: str) -> ScanResult:
         result.os = detect_os_ttl(ip)
 
     # Port scan — parallel threads for speed (1024 ports in ~3s vs ~17min)
+    # Use fewer workers for remote targets to avoid triggering IDS/firewall rules.
+    is_localhost = ip in ("127.0.0.1", "localhost", "::1")
+    workers = 100 if is_localhost else 20
     ports = list(config.SCAN_PORTS)
-    logger.info(f"  Scanning {len(ports)} ports in parallel...")
+    logger.info(f"  Scanning {len(ports)} ports in parallel ({workers} workers)...")
     open_ports: list[PortInfo] = []
-    with ThreadPoolExecutor(max_workers=100) as executor:
+    with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {executor.submit(scan_port, ip, port): port for port in ports}
         for future in as_completed(futures):
             port_info = future.result()

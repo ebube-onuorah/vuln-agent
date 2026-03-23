@@ -26,7 +26,7 @@ An AI-powered vulnerability scanner that scans your network, looks up real CVEs 
 
 ### 1. Clone and enter the folder
 ```bash
-git clone https://github.com/your-username/vuln-agent.git
+git clone https://github.com/EbubeOnuorah/vuln-agent.git
 cd vuln-agent
 ```
 

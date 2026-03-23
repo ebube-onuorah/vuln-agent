@@ -27,6 +27,9 @@ def _run_scan_job() -> None:
         logger.error(f"[Scheduler] Scan failed: {e}", exc_info=True)
 
 
+_VALID_DAYS = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+
+
 def configure_schedule(
     interval: str | None = None,
     scan_time: str | None = None,
@@ -47,26 +50,38 @@ def configure_schedule(
     scan_time = (scan_time or config.SCHEDULE_TIME)
     scan_day  = (scan_day  or config.SCHEDULE_DAY).lower()
 
-    if interval == "daily":
-        schedule.every().day.at(scan_time).do(_run_scan_job)
-        logger.info(f"Scheduled: daily at {scan_time}")
+    try:
+        if interval == "daily":
+            schedule.every().day.at(scan_time).do(_run_scan_job)
+            logger.info(f"Scheduled: daily at {scan_time}")
 
-    elif interval == "weekly":
-        getattr(schedule.every(), scan_day).at(scan_time).do(_run_scan_job)
-        logger.info(f"Scheduled: every {scan_day} at {scan_time}")
+        elif interval == "weekly":
+            if scan_day not in _VALID_DAYS:
+                raise ValueError(f"Invalid day '{scan_day}'. Must be one of: {', '.join(sorted(_VALID_DAYS))}")
+            getattr(schedule.every(), scan_day).at(scan_time).do(_run_scan_job)
+            logger.info(f"Scheduled: every {scan_day} at {scan_time}")
 
-    elif interval.endswith("h"):
-        hours = int(interval[:-1])
-        schedule.every(hours).hours.do(_run_scan_job)
-        logger.info(f"Scheduled: every {hours} hour(s)")
+        elif interval.endswith("h"):
+            numeric = interval[:-1]
+            if not numeric.isdigit() or int(numeric) < 1:
+                raise ValueError(f"Invalid hour interval '{interval}'. Use a positive integer e.g. '6h'.")
+            hours = int(numeric)
+            schedule.every(hours).hours.do(_run_scan_job)
+            logger.info(f"Scheduled: every {hours} hour(s)")
 
-    elif interval.endswith("m"):
-        minutes = int(interval[:-1])
-        schedule.every(minutes).minutes.do(_run_scan_job)
-        logger.info(f"Scheduled: every {minutes} minute(s)")
+        elif interval.endswith("m"):
+            numeric = interval[:-1]
+            if not numeric.isdigit() or int(numeric) < 1:
+                raise ValueError(f"Invalid minute interval '{interval}'. Use a positive integer e.g. '30m'.")
+            minutes = int(numeric)
+            schedule.every(minutes).minutes.do(_run_scan_job)
+            logger.info(f"Scheduled: every {minutes} minute(s)")
 
-    else:
-        logger.error(f"Unknown schedule interval: '{interval}'. Defaulting to daily at {scan_time}.")
+        else:
+            raise ValueError(f"Unknown schedule interval: '{interval}'. Use: daily, weekly, 12h, 6h, 1h, 30m.")
+
+    except (ValueError, Exception) as e:
+        logger.error(f"Schedule configuration failed: {e}. Defaulting to daily at {scan_time}.")
         schedule.every().day.at(scan_time).do(_run_scan_job)
 
 

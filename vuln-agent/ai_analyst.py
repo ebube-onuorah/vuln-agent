@@ -47,23 +47,32 @@ def _calculate_remediation_date(cvss_severity: str) -> date:
 
 
 def _build_prompt(scan: ScanResult, cve: CVERecord) -> str:
+    # Use the NVD-sourced product name if available; fall back to port keyword
+    affected_product = cve.nvd_affected_product or cve.related_service
+
     return f"""You are a cybersecurity analyst writing a vulnerability report for a {scan.os} system.
 
 Vulnerability Details:
 - CVE ID: {cve.cve_id}
 - CVSS Score: {cve.cvss_score} ({cve.cvss_severity.upper()})
-- Affected Port/Service: {cve.related_port}/{cve.related_service}
+- Actual Affected Product (from NVD CPE data): {affected_product}
+- Discovery Method (port that triggered the search): port {cve.related_port} ({cve.related_service})
 - Target System: {scan.os} ({scan.ip})
 - Public Exploit Available: {cve.public_exploit}
-- Description: {cve.description}
+- NVD Description: {cve.description}
+
+IMPORTANT: The "Discovery Method" is how the scanner found this CVE, NOT necessarily
+what is vulnerable. A CVE found via port 445 (SMB) may actually affect a completely
+different component (e.g., Task Scheduler, Print Spooler, RPC). Always derive the
+affected service from "Actual Affected Product" and "NVD Description" — not the port.
 
 Write a concise vulnerability report with exactly two sections:
 
 SUMMARY:
-Write 2-3 sentences explaining what this vulnerability is, why it's dangerous, and what an attacker could do if they exploit it. Use plain English that a non-technical IT manager can understand.
+Write 2-3 sentences explaining what this vulnerability is, why it's dangerous, and what an attacker could do if they exploit it. Correctly identify the vulnerable component from the NVD data. Use plain English that a non-technical IT manager can understand.
 
 SOLUTION:
-Write 3-5 numbered steps to remediate this vulnerability. Be specific and actionable. Include patch commands or configuration changes where possible."""
+Write 3-5 numbered steps to remediate this vulnerability. Target the actual affected component, not the discovery port. Be specific and actionable. Include patch commands or configuration changes where possible."""
 
 
 def analyse_vulnerability(scan: ScanResult, cve: CVERecord) -> AIAnalysis:
@@ -85,7 +94,7 @@ def analyse_vulnerability(scan: ScanResult, cve: CVERecord) -> AIAnalysis:
         solution = ""
 
         if "SUMMARY:" in text and "SOLUTION:" in text:
-            parts = text.split("SOLUTION:")
+            parts = text.split("SOLUTION:", 1)
             summary = parts[0].replace("SUMMARY:", "").strip()
             solution = parts[1].strip()
         elif text:

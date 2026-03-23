@@ -1,7 +1,8 @@
 .env
 .env.local
 cache/
-reports/
+reports/*
+!reports/DEMO_Vulnerability_Report.xlsx
 __pycache__/
 *.pyc
 *.log

@@ -4,7 +4,6 @@ Runs on startup to catch missing/invalid credentials before scanning.
 """
 
 import logging
-import sys
 
 import config
 
@@ -37,14 +36,11 @@ def validate_config() -> bool:
     if not config.TARGETS:
         errors.append("[ERROR] TARGETS list is empty in config.py")
 
+    if not config.SCAN_PORTS:
+        errors.append("[ERROR] SCAN_PORTS is empty in config.py — no ports to scan")
+
     if config.MAX_SOFTWARE_SEARCHES < 1:
         errors.append("[ERROR] MAX_SOFTWARE_SEARCHES must be >= 1")
-
-    if not config.REPORTS_DIR.exists():
-        try:
-            config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            errors.append(f"[ERROR] Cannot create REPORTS_DIR: {e}")
 
     # Report results
     if errors:
