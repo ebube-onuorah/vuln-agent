@@ -24,6 +24,7 @@ load_dotenv()  # Load .env before importing config (which reads env vars)
 # Force UTF-8 output on Windows so special characters display correctly
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 import config
 from scanner import scan_all_targets, scan_target, ScanResult
@@ -127,7 +128,7 @@ def _update_state(scans: list[ScanResult], total_findings: int, report_path: Pat
 *Updated automatically after each scan.*
 *To reset: delete this file and re-run `python agent.py --scan`*
 """
-        config.STATE_FILE.write_text(state_content)
+        config.STATE_FILE.write_text(state_content, encoding="utf-8")
         logger.debug("STATE.md updated")
     except Exception as e:
         logger.warning(f"STATE.md update failed: {e}")

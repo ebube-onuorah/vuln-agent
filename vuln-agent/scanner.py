@@ -97,9 +97,9 @@ def detect_os_ttl(ip: str) -> str:
             ttl_str = output.lower().split("ttl=")[-1].split()[0].strip()
             ttl = int(ttl_str)
             if ttl <= 64:
-                return "Linux/Unix (TTL≤64)"
+                return "Linux/Unix (TTL<=64)"
             elif ttl <= 128:
-                return "Windows (TTL≤128)"
+                return "Windows (TTL<=128)"
             else:
                 return "Network Device / Unknown"
     except Exception:
@@ -187,6 +187,35 @@ def scan_port(ip: str, port: int) -> PortInfo | None:
     return None
 
 
+def _refine_os_from_ports(ttl_os: str, open_ports: list[PortInfo]) -> str:
+    """
+    Refine a TTL-based OS guess using open port fingerprints.
+    Windows-specific ports (RPC/SMB/NetBIOS/RDP/WinRM) raise confidence
+    and replace the generic TTL label with a more descriptive string.
+    Called after port scan completes so port data is available.
+    """
+    port_nums = {p.port for p in open_ports}
+
+    windows_ports = {135: "RPC", 139: "NetBIOS", 445: "SMB",
+                     3389: "RDP", 5985: "WinRM", 5986: "WinRM-SSL"}
+    linux_ports   = {22: "SSH", 111: "rpcbind"}
+
+    matched_win = {name for p, name in windows_ports.items() if p in port_nums}
+    matched_lin = {name for p, name in linux_ports.items() if p in port_nums}
+
+    if "Windows" in ttl_os and len(matched_win) >= 2:
+        services = "/".join(sorted(matched_win))
+        return f"Windows ({services} fingerprint)"
+    elif "Windows" in ttl_os and matched_win:
+        service = next(iter(matched_win))
+        return f"Windows ({service} fingerprint)"
+    elif "Linux" in ttl_os and matched_lin:
+        services = "/".join(sorted(matched_lin))
+        return f"Linux/Unix ({services} fingerprint)"
+
+    return ttl_os  # fallback: keep original TTL guess
+
+
 def scan_target(ip: str) -> ScanResult:
     """Full scan of a single target IP."""
     logger.info(f"Scanning {ip}...")
@@ -206,7 +235,6 @@ def scan_target(ip: str) -> ScanResult:
 
     # Port scan — parallel threads for speed (1024 ports in ~3s vs ~17min)
     # Use fewer workers for remote targets to avoid triggering IDS/firewall rules.
-    is_localhost = ip in ("127.0.0.1", "localhost", "::1")
     workers = 100 if is_localhost else 20
     ports = list(config.SCAN_PORTS)
     logger.info(f"  Scanning {len(ports)} ports in parallel ({workers} workers)...")
@@ -221,6 +249,11 @@ def scan_target(ip: str) -> ScanResult:
 
     open_ports.sort(key=lambda p: p.port)  # Sort by port number
     result.open_ports = open_ports
+
+    # Refine remote OS label using discovered ports (more reliable than TTL alone)
+    if not is_localhost:
+        result.os = _refine_os_from_ports(result.os, open_ports)
+
     logger.info(f"  {ip}: {len(open_ports)} open ports found")
     return result
 
