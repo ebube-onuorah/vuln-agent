@@ -236,7 +236,9 @@ def scan_target(ip: str) -> ScanResult:
 
     # Port scan — parallel threads for speed (1024 ports in ~3s vs ~17min)
     # Use fewer workers for remote targets to avoid triggering IDS/firewall rules.
-    workers = 100 if is_localhost else 20
+    # Loopback (127.0.0.1) traffic bypasses Windows Firewall by design — safe to
+    # use more workers there.  Both values are configurable in config.py.
+    workers = config.SCAN_WORKERS_LOCAL if is_localhost else config.SCAN_WORKERS_REMOTE
     ports = list(config.SCAN_PORTS)
     logger.info(f"  Scanning {len(ports)} ports in parallel ({workers} workers)...")
     open_ports: list[PortInfo] = []

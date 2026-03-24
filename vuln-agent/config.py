@@ -16,6 +16,11 @@ TARGETS: list[str] = [
 SCAN_PORTS: range = range(1, 1025)   # Common ports 1-1024
 BANNER_GRAB_TIMEOUT: float = 1.0     # Seconds to wait for service banner
 CONNECT_TIMEOUT: float = 1.5         # Seconds for TCP connect attempt (1.5 covers LAN + remote hosts up to ~1s RTT)
+# Parallel workers for port scanning.
+# Localhost loopback (127.0.0.1) bypasses Windows Firewall by design, so 50 workers
+# is safe and fast.  Remote targets use fewer workers to avoid triggering IDS alerts.
+SCAN_WORKERS_LOCAL: int = 50         # Workers for 127.0.0.1 / localhost scans
+SCAN_WORKERS_REMOTE: int = 20        # Workers for remote IP scans
 
 # ── Scheduling ────────────────────────────────────────────────────────────────
 # Options: "daily", "weekly", "12h", "6h", "30m"
