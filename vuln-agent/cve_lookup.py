@@ -193,6 +193,62 @@ _PUBLISHER_TO_VENDOR: dict[str, str] = {
 }
 
 
+# Maps detected OS string fragments to their CPE product name.
+# Used to filter port-based CVEs that only list other OS versions.
+_WINDOWS_OS_VERSIONS: dict[str, str] = {
+    "windows 11":          "windows_11",
+    "windows 10":          "windows_10",
+    "windows server 2025": "windows_server_2025",
+    "windows server 2022": "windows_server_2022",
+    "windows server 2019": "windows_server_2019",
+    "windows server 2016": "windows_server_2016",
+    "windows server 2012": "windows_server_2012",
+    "windows 8":           "windows_8",
+    "windows 7":           "windows_7",
+}
+
+
+def _cpe_matches_os_version(item: dict, os_str: str) -> bool:
+    """
+    When a CVE's CPE data includes OS-type entries, verify at least one
+    matches the host OS version.
+
+    - Prevents Windows 10 CVEs appearing for Windows 11 hosts (and vice versa).
+    - Prevents Windows Server CVEs appearing for desktop Windows hosts.
+    - Application-type CVEs (type 'a' CPEs only — no 'o') always pass through;
+      they are OS-agnostic and the OS version check is irrelevant.
+    - Returns True (include) when no version mapping can be determined.
+    """
+    if not os_str:
+        return True
+
+    os_lower = os_str.lower()
+    our_version: str | None = None
+    for key, val in _WINDOWS_OS_VERSIONS.items():
+        if key in os_lower:
+            our_version = val
+            break
+
+    if not our_version:
+        return True  # Not a recognised Windows version string — skip filter
+
+    # Collect only OS-type CPEs (cpe:2.3:o:...)
+    os_cpes: list[str] = []
+    for cfg in item.get("configurations", []):
+        for node in cfg.get("nodes", []):
+            for match in node.get("cpeMatch", []):
+                cpe = match.get("criteria", "").lower()
+                parts = cpe.split(":")
+                if len(parts) >= 3 and parts[2] == "o":
+                    os_cpes.append(cpe)
+
+    if not os_cpes:
+        return True  # No OS CPEs — application CVE, version check irrelevant
+
+    # At least one OS CPE must reference our Windows version
+    return any(our_version in cpe for cpe in os_cpes)
+
+
 def _cpe_matches_vendor(item: dict, publisher: str) -> bool:
     """
     When the software's publisher maps to a known CPE vendor, require that
@@ -459,6 +515,7 @@ def _parse_cve_item(
     platform: str = "unknown",
     installed_version: str = "",
     publisher: str = "",
+    os_str: str = "",
 ) -> CVERecord | None:
     """Parse a single NVD CVE item into a CVERecord, applying platform filter."""
     try:
@@ -467,6 +524,12 @@ def _parse_cve_item(
         # ── Platform filter (CPE-based) ────────────────────────────────────────
         if not _cpe_matches_platform(item, platform):
             return None  # CVE doesn't apply to this platform
+
+        # ── OS version filter ─────────────────────────────────────────────────
+        # Drops CVEs whose OS-type CPEs only list other Windows versions.
+        # e.g. a CVE for Windows 10 1507 is excluded when host is Windows 11.
+        if os_str and not _cpe_matches_os_version(item, os_str):
+            return None
 
         # ── Vendor filter (publisher-based) ───────────────────────────────────
         # For software-based searches, require CPE vendor to match the publisher.
@@ -543,6 +606,8 @@ def fetch_cves_for_keyword(
     platform: str = "unknown",
     installed_version: str = "",
     publisher: str = "",
+    os_str: str = "",
+    exact_match: bool = False,
 ) -> list[CVERecord]:
     """
     Query NVD for CVEs matching a keyword, filtered to the target platform.
@@ -553,10 +618,15 @@ def fetch_cves_for_keyword(
     if config.NVD_API_KEY:
         headers["apiKey"] = config.NVD_API_KEY
 
-    params = {
+    params: dict = {
         "keywordSearch": keyword,
         "resultsPerPage": config.NVD_RESULTS_PER_PAGE,
     }
+    # Exact phrase match: treats keyword as a single phrase rather than individual
+    # tokens. Prevents "Microsoft 365" matching "Microsoft Dynamics 365" and
+    # "Cisco Packet Tracer" matching "Cisco IOS XR".
+    if exact_match:
+        params["keywordExactMatch"] = "TRUE"
 
     try:
         records = []
@@ -595,6 +665,7 @@ def fetch_cves_for_keyword(
                     platform=platform,
                     installed_version=installed_version,
                     publisher=publisher,
+                    os_str=os_str,
                 )
                 if record and record.cvss_score > 0:
                     records.append(record)
@@ -638,6 +709,7 @@ def lookup_vulnerabilities(scan_result: ScanResult) -> list[CVERecord]:
             port=port_info.port,
             service=port_info.service,
             platform=platform,
+            os_str=scan_result.os,   # Filters Windows 10 CVEs for Windows 11 hosts etc.
         )
 
         for cve in cves:
@@ -688,6 +760,7 @@ def lookup_vulnerabilities(scan_result: ScanResult) -> list[CVERecord]:
                 platform="unknown",
                 installed_version=sw.version,
                 publisher=sw.publisher,   # Enables vendor CPE filter for known publishers
+                exact_match=True,         # Exact phrase — "Microsoft 365" won't match "Dynamics 365"
             )
             for cve in cves:
                 if cve.cve_id not in seen_ids:
