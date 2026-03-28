@@ -145,6 +145,51 @@ class VulnerabilityPredictor:
             },
         }
 
+    def feature_importance(self) -> Dict:
+        """
+        Return feature importances from both models.
+
+        Returns:
+            {
+                "feature_names": [...],
+                "xgboost": {name: importance, ...},
+                "random_forest": {name: importance, ...},
+                "ensemble": {name: avg_importance, ...},
+            }
+        """
+        names = [
+            "lines_added", "lines_deleted", "lines_modified", "files_changed",
+            "cyclomatic_complexity", "avg_function_size", "has_dangerous_apis",
+            "entropy", "is_test_file", "language_type", "comment_ratio",
+        ]
+
+        result: Dict = {"feature_names": names, "xgboost": {}, "random_forest": {}, "ensemble": {}}
+
+        xgb_imp = {}
+        rf_imp  = {}
+
+        if self.xgb_model is not None:
+            imp = self.xgb_model.feature_importances_
+            xgb_imp = {n: round(float(v), 6) for n, v in zip(names, imp)}
+            result["xgboost"] = xgb_imp
+
+        if self.rf_model is not None:
+            imp = self.rf_model.feature_importances_
+            rf_imp = {n: round(float(v), 6) for n, v in zip(names, imp)}
+            result["random_forest"] = rf_imp
+
+        if xgb_imp and rf_imp:
+            result["ensemble"] = {
+                n: round((xgb_imp.get(n, 0) + rf_imp.get(n, 0)) / 2, 6)
+                for n in names
+            }
+        elif xgb_imp:
+            result["ensemble"] = xgb_imp
+        elif rf_imp:
+            result["ensemble"] = rf_imp
+
+        return result
+
     def is_ready(self) -> bool:
         """Check if at least one model is loaded."""
         return self.xgb_model is not None or self.rf_model is not None

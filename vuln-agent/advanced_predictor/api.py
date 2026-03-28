@@ -101,6 +101,7 @@ class MetricsResponse(BaseModel):
     n_features: int
     feature_names: list
     models: Dict[str, Any]
+    feature_importance: Dict[str, Any]
     trained_on: str
 
 
@@ -127,6 +128,8 @@ async def metrics():
         raise HTTPException(status_code=404, detail="metrics.json not found — run train.py first.")
 
     data = json.loads(metrics_path.read_text())
+    predictor = get_predictor()
+    fi = predictor.feature_importance() if predictor.is_ready() else {}
     return MetricsResponse(
         dataset_size=data.get("dataset_size", 0),
         train_samples=data.get("train_samples", 0),
@@ -134,6 +137,7 @@ async def metrics():
         n_features=data.get("n_features", 11),
         feature_names=data.get("feature_names", []),
         models=data.get("models", {}),
+        feature_importance=fi,
         trained_on=data.get("timestamp", "unknown"),
     )
 

@@ -28,6 +28,12 @@ interface MetricsData {
   n_features: number;
   feature_names: string[];
   models: Record<string, ModelMetrics>;
+  feature_importance: {
+    feature_names: string[];
+    ensemble: Record<string, number>;
+    xgboost: Record<string, number>;
+    random_forest: Record<string, number>;
+  };
   trained_on: string;
 }
 
@@ -167,6 +173,41 @@ export default function MetricsPage() {
                 </CardContent>
               </Card>
             ))}
+
+            {/* Feature importance */}
+            {data.feature_importance?.ensemble && Object.keys(data.feature_importance.ensemble).length > 0 && (() => {
+              const fi = data.feature_importance.ensemble;
+              const sorted = Object.entries(fi).sort(([, a], [, b]) => b - a);
+              const maxVal = sorted[0]?.[1] ?? 1;
+              return (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                      Feature Importance (Ensemble)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {sorted.map(([name, val]) => (
+                      <div key={name} className="flex items-center gap-3">
+                        <code className="text-xs text-blue-400 w-40 shrink-0">{name}</code>
+                        <div className="flex-1 h-1.5 rounded-full bg-zinc-800 relative">
+                          <div
+                            className="absolute top-0 left-0 h-full rounded-full bg-blue-500"
+                            style={{ width: `${(val / maxVal) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-mono text-zinc-400 w-12 text-right">
+                          {(val * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    ))}
+                    <p className="text-xs text-zinc-600 pt-1">
+                      Average of XGBoost + Random Forest importances
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
             {/* Feature list */}
             <Card>
