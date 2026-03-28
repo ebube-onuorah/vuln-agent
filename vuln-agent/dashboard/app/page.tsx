@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Shield, AlertTriangle, CheckCircle, Loader2, GitBranch, Code2, History, Github } from "lucide-react";
+import { Shield, AlertTriangle, CheckCircle, Loader2, GitBranch, Code2, History, Github, BarChart2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -156,6 +156,10 @@ export default function Home() {
             <Link href="/history" className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
               <History className="w-4 h-4" />
               History {history.length > 0 && <span className="text-xs text-zinc-600">({history.length})</span>}
+            </Link>
+            <Link href="/metrics" className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">
+              <BarChart2 className="w-4 h-4" />
+              Metrics
             </Link>
             <div className="flex items-center gap-1.5 text-sm text-zinc-600">
               <GitBranch className="w-4 h-4" />

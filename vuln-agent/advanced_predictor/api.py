@@ -94,6 +94,16 @@ class ScanGithubResponse(BaseModel):
     pr: Dict[str, Any]
 
 
+class MetricsResponse(BaseModel):
+    dataset_size: int
+    train_samples: int
+    test_samples: int
+    n_features: int
+    feature_names: list
+    models: Dict[str, Any]
+    trained_on: str
+
+
 class HealthResponse(BaseModel):
     status: str
     models_loaded: list
@@ -104,6 +114,28 @@ class HealthResponse(BaseModel):
 # ─── Endpoints ─────────────────────────────────────────────────────────────────
 
 _AUTH = Depends(require_api_key)
+
+
+@app.get("/metrics", response_model=MetricsResponse, tags=["System"])
+async def metrics():
+    """Return model training metrics and feature information."""
+    import json
+    from pathlib import Path
+
+    metrics_path = Path(__file__).parent / "training" / "models" / "metrics.json"
+    if not metrics_path.exists():
+        raise HTTPException(status_code=404, detail="metrics.json not found — run train.py first.")
+
+    data = json.loads(metrics_path.read_text())
+    return MetricsResponse(
+        dataset_size=data.get("dataset_size", 0),
+        train_samples=data.get("train_samples", 0),
+        test_samples=data.get("test_samples", 0),
+        n_features=data.get("n_features", 11),
+        feature_names=data.get("feature_names", []),
+        models=data.get("models", {}),
+        trained_on=data.get("timestamp", "unknown"),
+    )
 
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])

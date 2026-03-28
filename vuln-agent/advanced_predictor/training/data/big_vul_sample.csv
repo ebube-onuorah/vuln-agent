@@ -1,325 +1,1778 @@
 commit_id,repo,author,date,diff,vuln
-abc1234,openssl/openssl,alice,2021-01-15,"--- a/crypto/buffer.c
-+++ b/crypto/buffer.c
-@@ -100,7 +100,9 @@
--    char *data = malloc(size);
-+    char *data = malloc(size);
-+    strcpy(data, input);  // Buffer overflow vulnerability
-     return data;
-",1
-def5678,django/django,bob,2021-02-20,"--- a/django/views.py
-+++ b/django/views.py
-@@ -45,3 +45,8 @@
- def get_user(request):
-     user_id = request.GET.get('id')
-+    # Input validation added
-+    if not user_id.isdigit():
-+        raise ValueError('Invalid user ID')
-     user = User.objects.get(id=user_id)
+vuln00041,nodejs/node,charlie,2021-12-04,"--- a/scripts/deploy.py
++++ b/scripts/deploy.py
+@@ -7,4 +7,5 @@
+ import subprocess
+ def deploy(branch):
++    subprocess.Popen(f""git checkout {branch} && make deploy"", shell=True)
+ ",1
+vuln00063,nodejs/node,bob,2021-01-02,"--- a/cache/loader.py
++++ b/cache/loader.py
+@@ -6,5 +6,7 @@
+ import pickle
+
+ def load_cache(path):
++    with open(path, 'rb') as f:
++        return pickle.load(f)
+ ",1
+vuln00040,openssl/openssl,bob,2022-07-26,"--- a/core/node.c
++++ b/core/node.c
+@@ -15,4 +15,6 @@
+ void process_node(Node *n) {
++    char *value = n->data;
++    if (strlen(value) > 0) {  // dereference before null check
++        strcpy(output, value);
++    }
+ }",1
+safe00015,nodejs/node,diana,2021-05-22,"--- a/tests/test_auth.py
++++ b/tests/test_auth.py
+@@ -0,0 +1,14 @@
++import pytest
++from app.auth import authenticate
++
++def test_valid_user():
++    assert authenticate('alice', 'pass123') == True
++
++def test_invalid_password():
++    assert authenticate('alice', 'wrong') == False
++
++def test_sql_injection_blocked():
++    result = authenticate(""' OR '1'='1"", ""any"")
++    assert result == False
 ",0
-ghi9012,python/cpython,charlie,2021-03-10,"--- a/Modules/socketmodule.c
-+++ b/Modules/socketmodule.c
-@@ -200,5 +200,6 @@
- int socket_connect(struct socket *s, char *addr) {
--    return system(addr);  // Command injection
-+    // Fixed: use proper socket API
-+    return socket_connect_safe(addr);
- }
-",1
-jkl3456,nodejs/node,diana,2021-04-05,"--- a/lib/crypto.js
-+++ b/lib/crypto.js
-@@ -50,4 +50,6 @@
- function encrypt(key, plaintext) {
-     const cipher = crypto.createCipher('aes-256-cbc', key);
-+    // Proper key derivation added
-+    const derived = crypto.pbkdf2(key, salt, 100000, 32, 'sha256');
--    return cipher.update(plaintext, 'utf8', 'hex');
+vuln00038,linux/linux,charlie,2024-07-20,"--- a/src/utils.c
++++ b/src/utils.c
+@@ -12,6 +12,10 @@
+ void process_input(char *input) {
++    char buf[64];
++    strcpy(buf, input);
++    printf(""Processing: %s\n"", buf);
++    return;
+ }",1
+vuln00099,nodejs/node,alice,2022-11-20,"--- a/log/logger.c
++++ b/log/logger.c
+@@ -7,3 +7,4 @@
+ void log_message(char *msg) {
++    printf(msg);  // format string bug
+ }",1
+vuln00017,nodejs/node,diana,2020-10-08,"--- a/parse/scanner.c
++++ b/parse/scanner.c
+@@ -5,3 +5,4 @@
+ void parse_input(char *raw) {
++    char token[16]; sscanf(raw, ""%s"", token);
+ }",1
+safe00090,openssl/openssl,diana,2022-11-18,"--- a/middleware/csrf.py
++++ b/middleware/csrf.py
+@@ -3,3 +3,9 @@
+ def process_request(request):
++    token = request.session.get('csrf_token')
++    if not token:
++        token = generate_secure_token()
++        request.session['csrf_token'] = token
++    if request.method == 'POST':
++        if request.POST.get('csrf_token') != token:
++            raise PermissionDenied(""CSRF token mismatch"")
 ",0
-syn00000,repo0,author0,2021-01-01,"Sample diff #0
-+Added 0 lines
--Removed 0 lines",1
-syn00001,repo1,author1,2021-02-02,"Sample diff #1
-+Added 1 lines
--Removed 1 lines",0
-syn00002,repo2,author2,2021-03-03,"Sample diff #2
-+Added 2 lines
--Removed 2 lines",0
-syn00003,repo3,author3,2021-04-04,"Sample diff #3
-+Added 3 lines
--Removed 3 lines",1
-syn00004,repo4,author4,2021-05-05,"Sample diff #4
-+Added 4 lines
--Removed 4 lines",0
-syn00005,repo0,author5,2021-06-06,"Sample diff #5
-+Added 5 lines
--Removed 0 lines",0
-syn00006,repo1,author6,2021-07-07,"Sample diff #6
-+Added 6 lines
--Removed 1 lines",1
-syn00007,repo2,author7,2021-08-08,"Sample diff #7
-+Added 7 lines
--Removed 2 lines",0
-syn00008,repo3,author8,2021-09-09,"Sample diff #8
-+Added 8 lines
--Removed 3 lines",0
-syn00009,repo4,author9,2021-10-10,"Sample diff #9
-+Added 9 lines
--Removed 4 lines",1
-syn00010,repo0,author0,2021-11-11,"Sample diff #10
-+Added 10 lines
--Removed 0 lines",0
-syn00011,repo1,author1,2021-12-12,"Sample diff #11
-+Added 11 lines
--Removed 1 lines",0
-syn00012,repo2,author2,2021-01-13,"Sample diff #12
-+Added 12 lines
--Removed 2 lines",1
-syn00013,repo3,author3,2021-02-14,"Sample diff #13
-+Added 13 lines
--Removed 3 lines",0
-syn00014,repo4,author4,2021-03-15,"Sample diff #14
-+Added 14 lines
--Removed 4 lines",0
-syn00015,repo0,author5,2021-04-16,"Sample diff #15
-+Added 15 lines
--Removed 0 lines",1
-syn00016,repo1,author6,2021-05-17,"Sample diff #16
-+Added 16 lines
--Removed 1 lines",0
-syn00017,repo2,author7,2021-06-18,"Sample diff #17
-+Added 17 lines
--Removed 2 lines",0
-syn00018,repo3,author8,2021-07-19,"Sample diff #18
-+Added 18 lines
--Removed 3 lines",1
-syn00019,repo4,author9,2021-08-20,"Sample diff #19
-+Added 19 lines
--Removed 4 lines",0
-syn00020,repo0,author0,2021-09-21,"Sample diff #20
-+Added 20 lines
--Removed 0 lines",0
-syn00021,repo1,author1,2021-10-22,"Sample diff #21
-+Added 21 lines
--Removed 1 lines",1
-syn00022,repo2,author2,2021-11-23,"Sample diff #22
-+Added 22 lines
--Removed 2 lines",0
-syn00023,repo3,author3,2021-12-24,"Sample diff #23
-+Added 23 lines
--Removed 3 lines",0
-syn00024,repo4,author4,2021-01-25,"Sample diff #24
-+Added 24 lines
--Removed 4 lines",1
-syn00025,repo0,author5,2021-02-26,"Sample diff #25
-+Added 25 lines
--Removed 0 lines",0
-syn00026,repo1,author6,2021-03-27,"Sample diff #26
-+Added 26 lines
--Removed 1 lines",0
-syn00027,repo2,author7,2021-04-28,"Sample diff #27
-+Added 27 lines
--Removed 2 lines",1
-syn00028,repo3,author8,2021-05-01,"Sample diff #28
-+Added 28 lines
--Removed 3 lines",0
-syn00029,repo4,author9,2021-06-02,"Sample diff #29
-+Added 29 lines
--Removed 4 lines",0
-syn00030,repo0,author0,2021-07-03,"Sample diff #30
-+Added 30 lines
--Removed 0 lines",1
-syn00031,repo1,author1,2021-08-04,"Sample diff #31
-+Added 31 lines
--Removed 1 lines",0
-syn00032,repo2,author2,2021-09-05,"Sample diff #32
-+Added 32 lines
--Removed 2 lines",0
-syn00033,repo3,author3,2021-10-06,"Sample diff #33
-+Added 33 lines
--Removed 3 lines",1
-syn00034,repo4,author4,2021-11-07,"Sample diff #34
-+Added 34 lines
--Removed 4 lines",0
-syn00035,repo0,author5,2021-12-08,"Sample diff #35
-+Added 35 lines
--Removed 0 lines",0
-syn00036,repo1,author6,2021-01-09,"Sample diff #36
-+Added 36 lines
--Removed 1 lines",1
-syn00037,repo2,author7,2021-02-10,"Sample diff #37
-+Added 37 lines
--Removed 2 lines",0
-syn00038,repo3,author8,2021-03-11,"Sample diff #38
-+Added 38 lines
--Removed 3 lines",0
-syn00039,repo4,author9,2021-04-12,"Sample diff #39
-+Added 39 lines
--Removed 4 lines",1
-syn00040,repo0,author0,2021-05-13,"Sample diff #40
-+Added 40 lines
--Removed 0 lines",0
-syn00041,repo1,author1,2021-06-14,"Sample diff #41
-+Added 41 lines
--Removed 1 lines",0
-syn00042,repo2,author2,2021-07-15,"Sample diff #42
-+Added 42 lines
--Removed 2 lines",1
-syn00043,repo3,author3,2021-08-16,"Sample diff #43
-+Added 43 lines
--Removed 3 lines",0
-syn00044,repo4,author4,2021-09-17,"Sample diff #44
-+Added 44 lines
--Removed 4 lines",0
-syn00045,repo0,author5,2021-10-18,"Sample diff #45
-+Added 45 lines
--Removed 0 lines",1
-syn00046,repo1,author6,2021-11-19,"Sample diff #46
-+Added 46 lines
--Removed 1 lines",0
-syn00047,repo2,author7,2021-12-20,"Sample diff #47
-+Added 47 lines
--Removed 2 lines",0
-syn00048,repo3,author8,2021-01-21,"Sample diff #48
-+Added 48 lines
--Removed 3 lines",1
-syn00049,repo4,author9,2021-02-22,"Sample diff #49
-+Added 49 lines
--Removed 4 lines",0
-syn00050,repo0,author0,2021-03-23,"Sample diff #50
-+Added 50 lines
--Removed 0 lines",0
-syn00051,repo1,author1,2021-04-24,"Sample diff #51
-+Added 51 lines
--Removed 1 lines",1
-syn00052,repo2,author2,2021-05-25,"Sample diff #52
-+Added 52 lines
--Removed 2 lines",0
-syn00053,repo3,author3,2021-06-26,"Sample diff #53
-+Added 53 lines
--Removed 3 lines",0
-syn00054,repo4,author4,2021-07-27,"Sample diff #54
-+Added 54 lines
--Removed 4 lines",1
-syn00055,repo0,author5,2021-08-28,"Sample diff #55
-+Added 55 lines
--Removed 0 lines",0
-syn00056,repo1,author6,2021-09-01,"Sample diff #56
-+Added 56 lines
--Removed 1 lines",0
-syn00057,repo2,author7,2021-10-02,"Sample diff #57
-+Added 57 lines
--Removed 2 lines",1
-syn00058,repo3,author8,2021-11-03,"Sample diff #58
-+Added 58 lines
--Removed 3 lines",0
-syn00059,repo4,author9,2021-12-04,"Sample diff #59
-+Added 59 lines
--Removed 4 lines",0
-syn00060,repo0,author0,2021-01-05,"Sample diff #60
-+Added 60 lines
--Removed 0 lines",1
-syn00061,repo1,author1,2021-02-06,"Sample diff #61
-+Added 61 lines
--Removed 1 lines",0
-syn00062,repo2,author2,2021-03-07,"Sample diff #62
-+Added 62 lines
--Removed 2 lines",0
-syn00063,repo3,author3,2021-04-08,"Sample diff #63
-+Added 63 lines
--Removed 3 lines",1
-syn00064,repo4,author4,2021-05-09,"Sample diff #64
-+Added 64 lines
--Removed 4 lines",0
-syn00065,repo0,author5,2021-06-10,"Sample diff #65
-+Added 65 lines
--Removed 0 lines",0
-syn00066,repo1,author6,2021-07-11,"Sample diff #66
-+Added 66 lines
--Removed 1 lines",1
-syn00067,repo2,author7,2021-08-12,"Sample diff #67
-+Added 67 lines
--Removed 2 lines",0
-syn00068,repo3,author8,2021-09-13,"Sample diff #68
-+Added 68 lines
--Removed 3 lines",0
-syn00069,repo4,author9,2021-10-14,"Sample diff #69
-+Added 69 lines
--Removed 4 lines",1
-syn00070,repo0,author0,2021-11-15,"Sample diff #70
-+Added 70 lines
--Removed 0 lines",0
-syn00071,repo1,author1,2021-12-16,"Sample diff #71
-+Added 71 lines
--Removed 1 lines",0
-syn00072,repo2,author2,2021-01-17,"Sample diff #72
-+Added 72 lines
--Removed 2 lines",1
-syn00073,repo3,author3,2021-02-18,"Sample diff #73
-+Added 73 lines
--Removed 3 lines",0
-syn00074,repo4,author4,2021-03-19,"Sample diff #74
-+Added 74 lines
--Removed 4 lines",0
-syn00075,repo0,author5,2021-04-20,"Sample diff #75
-+Added 75 lines
--Removed 0 lines",1
-syn00076,repo1,author6,2021-05-21,"Sample diff #76
-+Added 76 lines
--Removed 1 lines",0
-syn00077,repo2,author7,2021-06-22,"Sample diff #77
-+Added 77 lines
--Removed 2 lines",0
-syn00078,repo3,author8,2021-07-23,"Sample diff #78
-+Added 78 lines
--Removed 3 lines",1
-syn00079,repo4,author9,2021-08-24,"Sample diff #79
-+Added 79 lines
--Removed 4 lines",0
-syn00080,repo0,author0,2021-09-25,"Sample diff #80
-+Added 80 lines
--Removed 0 lines",0
-syn00081,repo1,author1,2021-10-26,"Sample diff #81
-+Added 81 lines
--Removed 1 lines",1
-syn00082,repo2,author2,2021-11-27,"Sample diff #82
-+Added 82 lines
--Removed 2 lines",0
-syn00083,repo3,author3,2021-12-28,"Sample diff #83
-+Added 83 lines
--Removed 3 lines",0
-syn00084,repo4,author4,2021-01-01,"Sample diff #84
-+Added 84 lines
--Removed 4 lines",1
-syn00085,repo0,author5,2021-02-02,"Sample diff #85
-+Added 85 lines
--Removed 0 lines",0
-syn00086,repo1,author6,2021-03-03,"Sample diff #86
-+Added 86 lines
--Removed 1 lines",0
-syn00087,repo2,author7,2021-04-04,"Sample diff #87
-+Added 87 lines
--Removed 2 lines",1
-syn00088,repo3,author8,2021-05-05,"Sample diff #88
-+Added 88 lines
--Removed 3 lines",0
-syn00089,repo4,author9,2021-06-06,"Sample diff #89
-+Added 89 lines
--Removed 4 lines",0
-syn00090,repo0,author0,2021-07-07,"Sample diff #90
-+Added 90 lines
--Removed 0 lines",1
-syn00091,repo1,author1,2021-08-08,"Sample diff #91
-+Added 91 lines
--Removed 1 lines",0
-syn00092,repo2,author2,2021-09-09,"Sample diff #92
-+Added 92 lines
--Removed 2 lines",0
-syn00093,repo3,author3,2021-10-10,"Sample diff #93
-+Added 93 lines
--Removed 3 lines",1
-syn00094,repo4,author4,2021-11-11,"Sample diff #94
-+Added 94 lines
--Removed 4 lines",0
-syn00095,repo0,author5,2021-12-12,"Sample diff #95
-+Added 95 lines
--Removed 0 lines",0
+safe00089,nginx/nginx,fiona,2022-08-09,"--- a/api/views.py
++++ b/api/views.py
+@@ -1,4 +1,6 @@
++from django.utils.decorators import method_decorator
++from ratelimit.decorators import ratelimit
++
++@method_decorator(ratelimit(key='ip', rate='10/m'), name='dispatch')
+ class LoginView(APIView):
+     pass
+",0
+vuln00005,nginx/nginx,bob,2023-03-09,"--- a/alloc/memory.c
++++ b/alloc/memory.c
+@@ -5,5 +5,7 @@
+ void *alloc_buffer(int count, int size) {
++    int total = count * size;  // integer overflow possible
++    void *buf = malloc(total);
++    return buf;
+ }",1
+safe00052,nginx/nginx,alice,2023-06-14,"--- a/core/node.c
++++ b/core/node.c
+@@ -4,4 +4,6 @@
+ void process_node(Node *n) {
++    if (n == NULL || n->data == NULL) {
++        return;
++    }
+     strncpy(output, n->data, sizeof(output) - 1);
+ }",0
+vuln00068,nginx/nginx,alice,2024-04-28,"--- a/rpc/handler.py
++++ b/rpc/handler.py
+@@ -3,4 +3,6 @@
+ import pickle, base64
+
+ def handle_rpc(data):
++    obj = pickle.loads(base64.b64decode(data))
++    obj.execute()
+ ",1
+safe00045,python/cpython,fiona,2023-05-17,"--- a/requirements.txt
++++ b/requirements.txt
+@@ -3,3 +3,3 @@
+-Django==3.2.18
++Django==4.2.1
+ requests==2.28.0
+",0
+vuln00091,openssl/openssl,charlie,2021-11-03,"--- a/log/logger.c
++++ b/log/logger.c
+@@ -7,3 +7,4 @@
+ void log_message(char *msg) {
++    printf(msg);  // format string bug
+ }",1
+vuln00039,django/django,bob,2021-03-14,"--- a/rpc/handler.py
++++ b/rpc/handler.py
+@@ -3,4 +3,6 @@
+ import pickle, base64
+
+ def handle_rpc(data):
++    obj = pickle.loads(base64.b64decode(data))
++    obj.execute()
+ ",1
+vuln00043,nginx/nginx,charlie,2022-04-08,"--- a/admin/exec.c
++++ b/admin/exec.c
+@@ -5,3 +5,5 @@
+ void run_command(char *cmd) {
++    char full[256];
++    sprintf(full, ""sudo %s"", cmd);
++    system(full);
+ }",1
+vuln00013,openssl/openssl,evan,2024-01-24,"--- a/tools/runner.py
++++ b/tools/runner.py
+@@ -4,4 +4,6 @@
+ import subprocess
+
+ def run(cmd):
++    subprocess.call(cmd, shell=True)
+ ",1
+vuln00096,linux/linux,bob,2022-02-19,"--- a/admin/exec.c
++++ b/admin/exec.c
+@@ -5,3 +5,5 @@
+ void run_command(char *cmd) {
++    char full[256];
++    sprintf(full, ""sudo %s"", cmd);
++    system(full);
+ }",1
+safe00031,linux/linux,bob,2020-09-25,"--- a/README.md
++++ b/README.md
+@@ -1,3 +1,8 @@
+ # Project
++
++## Security
++
++All user inputs are sanitized before database queries.
++SQL injection protection is built into the ORM layer.
+",0
+vuln00061,linux/linux,charlie,2024-11-21,"--- a/net/packet.cpp
++++ b/net/packet.cpp
+@@ -12,4 +12,6 @@
+ void handle_packet(char *data, int len) {
++    char local[128];
++    memcpy(local, data, len);  // len not validated
++    process(local);
+ }",1
+safe00009,curl/curl,bob,2023-04-12,"--- a/core/node.c
++++ b/core/node.c
+@@ -4,4 +4,6 @@
+ void process_node(Node *n) {
++    if (n == NULL || n->data == NULL) {
++        return;
++    }
+     strncpy(output, n->data, sizeof(output) - 1);
+ }",0
+safe00051,python/cpython,bob,2024-07-21,"--- a/utils/parser.py
++++ b/utils/parser.py
+@@ -5,5 +5,7 @@
+-def parse(data):
++def parse(data: str) -> dict:
++    """"""Parse config string into dict. Raises ValueError on invalid input.""""""
++    if not isinstance(data, str):
++        raise TypeError(""data must be str"")
+     return json.loads(data)
+",0
+vuln00080,openssl/openssl,evan,2023-08-01,"--- a/utils/runner.py
++++ b/utils/runner.py
+@@ -8,3 +8,4 @@
+ def run_script(script_name):
+     code = open(script_name).read()
++    exec(code, globals())
+ ",1
+safe00033,apache/httpd,diana,2023-05-28,"--- a/requirements.txt
++++ b/requirements.txt
+@@ -3,3 +3,3 @@
+-Django==3.2.18
++Django==4.2.1
+ requests==2.28.0
+",0
+safe00079,apache/httpd,fiona,2020-06-28,"--- a/src/utils.c
++++ b/src/utils.c
+@@ -5,5 +5,6 @@
+ void copy_string(char *dest, char *src, size_t n) {
+-    strcpy(dest, src);
++    strncpy(dest, src, n - 1);
++    dest[n - 1] = '\0';
+ }",0
+vuln00021,python/cpython,diana,2022-02-01,"--- a/lib/format.c
++++ b/lib/format.c
+@@ -8,4 +8,6 @@
+ char *build_path(char *dir, char *file) {
++    char path[128];
++    sprintf(path, ""%s/%s"", dir, file);
++    return path;
+ }",1
+vuln00025,nginx/nginx,evan,2022-10-26,"--- a/lib/format.c
++++ b/lib/format.c
+@@ -8,4 +8,6 @@
+ char *build_path(char *dir, char *file) {
++    char path[128];
++    sprintf(path, ""%s/%s"", dir, file);
++    return path;
+ }",1
+vuln00064,nodejs/node,diana,2024-02-15,"--- a/parse/scanner.c
++++ b/parse/scanner.c
+@@ -5,3 +5,4 @@
+ void parse_input(char *raw) {
++    char token[16]; sscanf(raw, ""%s"", token);
+ }",1
+safe00086,apache/httpd,evan,2021-03-06,"--- a/integrations/api_client.py
++++ b/integrations/api_client.py
+@@ -5,3 +5,3 @@
+ def fetch(url):
+-    return requests.get(url)
++    return requests.get(url, timeout=10)
+",0
+safe00014,nginx/nginx,diana,2020-02-10,"--- a/integrations/api_client.py
++++ b/integrations/api_client.py
+@@ -5,3 +5,3 @@
+ def fetch(url):
+-    return requests.get(url)
++    return requests.get(url, timeout=10)
+",0
+vuln00048,openssl/openssl,alice,2024-07-12,"--- a/core/node.c
++++ b/core/node.c
+@@ -15,4 +15,6 @@
+ void process_node(Node *n) {
++    char *value = n->data;
++    if (strlen(value) > 0) {  // dereference before null check
++        strcpy(output, value);
++    }
+ }",1
+vuln00014,curl/curl,alice,2020-10-16,"--- a/views/render.py
++++ b/views/render.py
+@@ -9,3 +9,4 @@
+ def render_comment(comment_text):
++    return f""<div>{comment_text}</div>""  # unescaped user content
+ ",1
+safe00063,openssl/openssl,evan,2023-02-08,"--- a/tests/test_auth.py
++++ b/tests/test_auth.py
+@@ -0,0 +1,14 @@
++import pytest
++from app.auth import authenticate
++
++def test_valid_user():
++    assert authenticate('alice', 'pass123') == True
++
++def test_invalid_password():
++    assert authenticate('alice', 'wrong') == False
++
++def test_sql_injection_blocked():
++    result = authenticate(""' OR '1'='1"", ""any"")
++    assert result == False
+",0
+safe00007,nginx/nginx,bob,2023-10-20,"--- a/auth/models.py
++++ b/auth/models.py
+@@ -8,5 +8,6 @@
+ def set_password(self, raw_password):
+-    self.password = raw_password  # plain text!
++    from django.contrib.auth.hashers import make_password
++    self.password = make_password(raw_password)
+     self.save()
+",0
+vuln00032,django/django,fiona,2022-03-24,"--- a/lib/format.c
++++ b/lib/format.c
+@@ -8,4 +8,6 @@
+ char *build_path(char *dir, char *file) {
++    char path[128];
++    sprintf(path, ""%s/%s"", dir, file);
++    return path;
+ }",1
+safe00058,nginx/nginx,diana,2020-04-17,"--- a/integrations/api_client.py
++++ b/integrations/api_client.py
+@@ -5,3 +5,3 @@
+ def fetch(url):
+-    return requests.get(url)
++    return requests.get(url, timeout=10)
+",0
+vuln00028,django/django,charlie,2022-10-07,"--- a/cache/loader.py
++++ b/cache/loader.py
+@@ -6,5 +6,7 @@
+ import pickle
+
+ def load_cache(path):
++    with open(path, 'rb') as f:
++        return pickle.load(f)
+ ",1
+vuln00098,apache/httpd,fiona,2021-02-19,"--- a/app/views.py
++++ b/app/views.py
+@@ -15,3 +15,5 @@
+ def calculate(request):
+     expr = request.POST.get('expression')
++    result = eval(expr)
++    return JsonResponse({'result': result})
+ ",1
+safe00054,apache/httpd,fiona,2023-05-22,"--- a/README.md
++++ b/README.md
+@@ -1,3 +1,8 @@
+ # Project
++
++## Security
++
++All user inputs are sanitized before database queries.
++SQL injection protection is built into the ORM layer.
+",0
+safe00062,nodejs/node,fiona,2021-05-18,"--- a/middleware/csrf.py
++++ b/middleware/csrf.py
+@@ -3,3 +3,9 @@
+ def process_request(request):
++    token = request.session.get('csrf_token')
++    if not token:
++        token = generate_secure_token()
++        request.session['csrf_token'] = token
++    if request.method == 'POST':
++        if request.POST.get('csrf_token') != token:
++            raise PermissionDenied(""CSRF token mismatch"")
+",0
+safe00077,nginx/nginx,alice,2021-07-28,"--- a/auth/models.py
++++ b/auth/models.py
+@@ -8,5 +8,6 @@
+ def set_password(self, raw_password):
+-    self.password = raw_password  # plain text!
++    from django.contrib.auth.hashers import make_password
++    self.password = make_password(raw_password)
+     self.save()
+",0
+vuln00071,apache/httpd,evan,2023-03-24,"--- a/app/views.py
++++ b/app/views.py
+@@ -15,3 +15,5 @@
+ def calculate(request):
+     expr = request.POST.get('expression')
++    result = eval(expr)
++    return JsonResponse({'result': result})
+ ",1
+safe00088,nodejs/node,diana,2024-03-08,"--- a/auth/models.py
++++ b/auth/models.py
+@@ -8,5 +8,6 @@
+ def set_password(self, raw_password):
+-    self.password = raw_password  # plain text!
++    from django.contrib.auth.hashers import make_password
++    self.password = make_password(raw_password)
+     self.save()
+",0
+safe00056,curl/curl,charlie,2022-02-25,"--- a/api/views.py
++++ b/api/views.py
+@@ -1,4 +1,6 @@
++from django.utils.decorators import method_decorator
++from ratelimit.decorators import ratelimit
++
++@method_decorator(ratelimit(key='ip', rate='10/m'), name='dispatch')
+ class LoginView(APIView):
+     pass
+",0
+safe00073,apache/httpd,bob,2023-01-11,"--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -0,0 +1,10 @@
++name: Tests
++on: [push]
++jobs:
++  test:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - run: pip install -r requirements.txt
++      - run: pytest tests/ -v
+",0
+safe00069,python/cpython,alice,2022-12-10,"--- a/static/js/form.js
++++ b/static/js/form.js
+@@ -3,3 +3,8 @@
+ function submitForm() {
++    const email = document.getElementById('email').value;
++    if (!email.match(/^[^@]+@[^@]+\.[^@]+$/)) {
++        showError('Invalid email address');
++        return false;
++    }
+     return true;
+ }",0
+vuln00054,linux/linux,fiona,2022-09-10,"--- a/rpc/handler.py
++++ b/rpc/handler.py
+@@ -3,4 +3,6 @@
+ import pickle, base64
+
+ def handle_rpc(data):
++    obj = pickle.loads(base64.b64decode(data))
++    obj.execute()
+ ",1
+vuln00020,curl/curl,bob,2022-07-05,"--- a/db/queries.c
++++ b/db/queries.c
+@@ -10,5 +10,7 @@
+ void get_user(char *username) {
++    char query[512];
++    sprintf(query, ""SELECT * FROM users WHERE name='%s'"", username);
++    db_execute(query);
+ }",1
+vuln00037,openssl/openssl,charlie,2021-11-08,"--- a/auth/login.py
++++ b/auth/login.py
+@@ -5,3 +5,5 @@
+ def authenticate(user, password):
++    if user == ""admin"" and password == ""secret123"":
++        return True
++    return check_db(user, password)
+ ",1
+safe00067,nginx/nginx,evan,2021-07-07,"--- a/db/queries.py
++++ b/db/queries.py
+@@ -5,5 +5,5 @@
+ def get_user(username):
+-    query = f""SELECT * FROM users WHERE name='{username}'""
+-    return db.execute(query)
++    query = ""SELECT * FROM users WHERE name=?""
++    return db.execute(query, (username,))
+",0
+safe00044,python/cpython,diana,2020-08-23,"--- a/middleware/csrf.py
++++ b/middleware/csrf.py
+@@ -3,3 +3,9 @@
+ def process_request(request):
++    token = request.session.get('csrf_token')
++    if not token:
++        token = generate_secure_token()
++        request.session['csrf_token'] = token
++    if request.method == 'POST':
++        if request.POST.get('csrf_token') != token:
++            raise PermissionDenied(""CSRF token mismatch"")
+",0
+vuln00022,nginx/nginx,evan,2024-02-03,"--- a/rpc/handler.py
++++ b/rpc/handler.py
+@@ -3,4 +3,6 @@
+ import pickle, base64
+
+ def handle_rpc(data):
++    obj = pickle.loads(base64.b64decode(data))
++    obj.execute()
+ ",1
+safe00070,nginx/nginx,bob,2023-09-16,"--- a/memory/pool.c
++++ b/memory/pool.c
+@@ -8,4 +8,6 @@
+ void destroy_pool(Pool *p) {
+     free(p->data);
++    p->data = NULL;
++    p->size = 0;
+     free(p);
+ }",0
+safe00008,apache/httpd,charlie,2020-08-28,"--- a/api/views.py
++++ b/api/views.py
+@@ -1,4 +1,6 @@
++from django.utils.decorators import method_decorator
++from ratelimit.decorators import ratelimit
++
++@method_decorator(ratelimit(key='ip', rate='10/m'), name='dispatch')
+ class LoginView(APIView):
+     pass
+",0
+vuln00001,linux/linux,alice,2023-06-14,"--- a/app/views.py
++++ b/app/views.py
+@@ -15,3 +15,5 @@
+ def calculate(request):
+     expr = request.POST.get('expression')
++    result = eval(expr)
++    return JsonResponse({'result': result})
+ ",1
+vuln00055,apache/httpd,charlie,2023-12-10,"--- a/log/logger.c
++++ b/log/logger.c
+@@ -7,3 +7,4 @@
+ void log_message(char *msg) {
++    printf(msg);  // format string bug
+ }",1
+safe00050,django/django,diana,2024-11-15,"--- a/app/views.py
++++ b/app/views.py
+@@ -10,4 +10,8 @@
+ def get_user(user_id):
++    if not isinstance(user_id, int) or user_id <= 0:
++        raise ValueError(""Invalid user_id"")
++    if user_id > MAX_USER_ID:
++        raise ValueError(""user_id out of range"")
+     return db.query(User).filter_by(id=user_id).first()
+",0
+vuln00090,linux/linux,diana,2020-12-18,"--- a/config/parser.py
++++ b/config/parser.py
+@@ -3,4 +3,5 @@
+ import yaml
+
+ def parse_config(data):
++    return yaml.load(data)
+ ",1
+vuln00084,apache/httpd,fiona,2021-08-05,"--- a/src/utils.c
++++ b/src/utils.c
+@@ -12,6 +12,10 @@
+ void process_input(char *input) {
++    char buf[64];
++    strcpy(buf, input);
++    printf(""Processing: %s\n"", buf);
++    return;
+ }",1
+safe00078,django/django,alice,2023-05-11,"--- a/app/views.py
++++ b/app/views.py
+@@ -10,4 +10,8 @@
+ def get_user(user_id):
++    if not isinstance(user_id, int) or user_id <= 0:
++        raise ValueError(""Invalid user_id"")
++    if user_id > MAX_USER_ID:
++        raise ValueError(""user_id out of range"")
+     return db.query(User).filter_by(id=user_id).first()
+",0
+safe00017,apache/httpd,fiona,2024-06-12,"--- a/api/urls.py
++++ b/api/urls.py
+@@ -3,3 +3,4 @@
+ urlpatterns = [
++    path('v2/', include('api.v2.urls')),
+     path('v1/', include('api.v1.urls')),
+ ]",0
+safe00027,nginx/nginx,diana,2023-06-06,"--- a/api/serializers.py
++++ b/api/serializers.py
+@@ -12,4 +12,4 @@
+ class UserSerializer(serializers.ModelSerializer):
+     class Meta:
+         model = User
+-        fields = '__all__'
++        fields = ['id', 'username', 'email', 'created_at']
+",0
+vuln00074,python/cpython,diana,2020-12-10,"--- a/db/queries.c
++++ b/db/queries.c
+@@ -10,5 +10,7 @@
+ void get_user(char *username) {
++    char query[512];
++    sprintf(query, ""SELECT * FROM users WHERE name='%s'"", username);
++    db_execute(query);
+ }",1
+vuln00066,apache/httpd,diana,2023-04-05,"--- a/auth/login.py
++++ b/auth/login.py
+@@ -5,3 +5,5 @@
+ def authenticate(user, password):
++    if user == ""admin"" and password == ""secret123"":
++        return True
++    return check_db(user, password)
+ ",1
+safe00003,apache/httpd,charlie,2023-12-05,"--- a/services/email.py
++++ b/services/email.py
+@@ -1,5 +1,8 @@
++import logging
++logger = logging.getLogger(__name__)
++
+ def send_email(to, subject, body):
++    logger.info(f""Sending email to {to}: {subject}"")
+     smtp.sendmail(FROM, to, body)
+",0
+vuln00000,nginx/nginx,bob,2023-07-07,"--- a/log/logger.c
++++ b/log/logger.c
+@@ -7,3 +7,4 @@
+ void log_message(char *msg) {
++    printf(msg);  // format string bug
+ }",1
+vuln00018,openssl/openssl,evan,2020-07-22,"--- a/fs/file_ops.c
++++ b/fs/file_ops.c
+@@ -8,5 +8,8 @@
+ int safe_open(char *path) {
++    if (access(path, R_OK) == 0) {
++        // TOCTOU: file may change between check and open
++        return open(path, O_RDONLY);
++    }
++    return -1;
+ }",1
+safe00032,apache/httpd,evan,2024-10-08,"--- a/handlers/upload.py
++++ b/handlers/upload.py
+@@ -8,3 +8,7 @@
+ def handle_upload(file):
++    ALLOWED = {'.jpg', '.png', '.pdf'}
++    ext = Path(file.name).suffix.lower()
++    if ext not in ALLOWED:
++        raise ValueError(f""File type {ext} not allowed"")
+     save_file(file)
+",0
+safe00030,openssl/openssl,bob,2021-10-10,"--- a/middleware/csrf.py
++++ b/middleware/csrf.py
+@@ -3,3 +3,9 @@
+ def process_request(request):
++    token = request.session.get('csrf_token')
++    if not token:
++        token = generate_secure_token()
++        request.session['csrf_token'] = token
++    if request.method == 'POST':
++        if request.POST.get('csrf_token') != token:
++            raise PermissionDenied(""CSRF token mismatch"")
+",0
+safe00011,python/cpython,evan,2020-09-07,"--- a/middleware/csrf.py
++++ b/middleware/csrf.py
+@@ -3,3 +3,9 @@
+ def process_request(request):
++    token = request.session.get('csrf_token')
++    if not token:
++        token = generate_secure_token()
++        request.session['csrf_token'] = token
++    if request.method == 'POST':
++        if request.POST.get('csrf_token') != token:
++            raise PermissionDenied(""CSRF token mismatch"")
+",0
+vuln00073,python/cpython,evan,2023-11-08,"--- a/tools/runner.py
++++ b/tools/runner.py
+@@ -4,4 +4,6 @@
+ import subprocess
+
+ def run(cmd):
++    subprocess.call(cmd, shell=True)
+ ",1
+vuln00070,curl/curl,diana,2024-12-17,"--- a/net/packet.cpp
++++ b/net/packet.cpp
+@@ -12,4 +12,6 @@
+ void handle_packet(char *data, int len) {
++    char local[128];
++    memcpy(local, data, len);  // len not validated
++    process(local);
+ }",1
+safe00087,linux/linux,evan,2023-10-22,"--- a/static/js/form.js
++++ b/static/js/form.js
+@@ -3,3 +3,8 @@
+ function submitForm() {
++    const email = document.getElementById('email').value;
++    if (!email.match(/^[^@]+@[^@]+\.[^@]+$/)) {
++        showError('Invalid email address');
++        return false;
++    }
+     return true;
+ }",0
+vuln00026,openssl/openssl,fiona,2024-05-22,"--- a/rpc/handler.py
++++ b/rpc/handler.py
+@@ -3,4 +3,6 @@
+ import pickle, base64
+
+ def handle_rpc(data):
++    obj = pickle.loads(base64.b64decode(data))
++    obj.execute()
+ ",1
+vuln00072,nginx/nginx,diana,2022-04-27,"--- a/utils/runner.py
++++ b/utils/runner.py
+@@ -8,3 +8,4 @@
+ def run_script(script_name):
+     code = open(script_name).read()
++    exec(code, globals())
+ ",1
+safe00040,nodejs/node,charlie,2024-11-26,"--- a/db/queries.py
++++ b/db/queries.py
+@@ -5,5 +5,5 @@
+ def get_user(username):
+-    query = f""SELECT * FROM users WHERE name='{username}'""
+-    return db.execute(query)
++    query = ""SELECT * FROM users WHERE name=?""
++    return db.execute(query, (username,))
+",0
+safe00053,curl/curl,charlie,2020-03-11,"--- a/utils/parser.py
++++ b/utils/parser.py
+@@ -5,5 +5,7 @@
+-def parse(data):
++def parse(data: str) -> dict:
++    """"""Parse config string into dict. Raises ValueError on invalid input.""""""
++    if not isinstance(data, str):
++        raise TypeError(""data must be str"")
+     return json.loads(data)
+",0
+safe00071,curl/curl,charlie,2024-09-13,"--- a/core/node.c
++++ b/core/node.c
+@@ -4,4 +4,6 @@
+ void process_node(Node *n) {
++    if (n == NULL || n->data == NULL) {
++        return;
++    }
+     strncpy(output, n->data, sizeof(output) - 1);
+ }",0
+safe00043,django/django,charlie,2024-12-27,"--- a/requirements.txt
++++ b/requirements.txt
+@@ -3,3 +3,3 @@
+-Django==3.2.18
++Django==4.2.1
+ requests==2.28.0
+",0
+vuln00002,apache/httpd,diana,2020-11-21,"--- a/scripts/deploy.py
++++ b/scripts/deploy.py
+@@ -7,4 +7,5 @@
+ import subprocess
+ def deploy(branch):
++    subprocess.Popen(f""git checkout {branch} && make deploy"", shell=True)
+ ",1
+vuln00076,linux/linux,bob,2021-04-13,"--- a/alloc/memory.c
++++ b/alloc/memory.c
+@@ -5,5 +5,7 @@
+ void *alloc_buffer(int count, int size) {
++    int total = count * size;  // integer overflow possible
++    void *buf = malloc(total);
++    return buf;
+ }",1
+vuln00081,curl/curl,charlie,2023-07-18,"--- a/src/input.c
++++ b/src/input.c
+@@ -3,3 +3,5 @@
+ void read_username() {
++    char name[32];
++    gets(name);
++    printf(""Hello %s\n"", name);
+ }",1
+vuln00092,openssl/openssl,alice,2021-04-27,"--- a/src/input.c
++++ b/src/input.c
+@@ -3,3 +3,5 @@
+ void read_username() {
++    char name[32];
++    gets(name);
++    printf(""Hello %s\n"", name);
+ }",1
+safe00057,apache/httpd,evan,2020-11-28,"--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -0,0 +1,10 @@
++name: Tests
++on: [push]
++jobs:
++  test:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - run: pip install -r requirements.txt
++      - run: pytest tests/ -v
+",0
+safe00034,apache/httpd,charlie,2024-10-02,"--- a/api/views.py
++++ b/api/views.py
+@@ -1,4 +1,6 @@
++from django.utils.decorators import method_decorator
++from ratelimit.decorators import ratelimit
++
++@method_decorator(ratelimit(key='ip', rate='10/m'), name='dispatch')
+ class LoginView(APIView):
+     pass
+",0
+safe00025,python/cpython,fiona,2021-11-28,"--- a/auth/models.py
++++ b/auth/models.py
+@@ -8,5 +8,6 @@
+ def set_password(self, raw_password):
+-    self.password = raw_password  # plain text!
++    from django.contrib.auth.hashers import make_password
++    self.password = make_password(raw_password)
+     self.save()
+",0
+vuln00015,django/django,alice,2024-02-28,"--- a/admin/exec.c
++++ b/admin/exec.c
+@@ -5,3 +5,5 @@
+ void run_command(char *cmd) {
++    char full[256];
++    sprintf(full, ""sudo %s"", cmd);
++    system(full);
+ }",1
+safe00029,linux/linux,diana,2023-02-19,"--- a/services/email.py
++++ b/services/email.py
+@@ -1,5 +1,8 @@
++import logging
++logger = logging.getLogger(__name__)
++
+ def send_email(to, subject, body):
++    logger.info(f""Sending email to {to}: {subject}"")
+     smtp.sendmail(FROM, to, body)
+",0
+safe00005,nginx/nginx,diana,2023-12-19,"--- a/integrations/api_client.py
++++ b/integrations/api_client.py
+@@ -5,3 +5,3 @@
+ def fetch(url):
+-    return requests.get(url)
++    return requests.get(url, timeout=10)
+",0
+vuln00050,apache/httpd,evan,2021-05-02,"--- a/app/views.py
++++ b/app/views.py
+@@ -15,3 +15,5 @@
+ def calculate(request):
+     expr = request.POST.get('expression')
++    result = eval(expr)
++    return JsonResponse({'result': result})
+ ",1
+vuln00007,linux/linux,alice,2024-01-03,"--- a/config/parser.py
++++ b/config/parser.py
+@@ -3,4 +3,5 @@
+ import yaml
+
+ def parse_config(data):
++    return yaml.load(data)
+ ",1
+vuln00045,python/cpython,alice,2022-06-21,"--- a/utils/runner.py
++++ b/utils/runner.py
+@@ -8,3 +8,4 @@
+ def run_script(script_name):
+     code = open(script_name).read()
++    exec(code, globals())
+ ",1
+vuln00082,nodejs/node,diana,2021-05-14,"--- a/app/views.py
++++ b/app/views.py
+@@ -15,3 +15,5 @@
+ def calculate(request):
+     expr = request.POST.get('expression')
++    result = eval(expr)
++    return JsonResponse({'result': result})
+ ",1
+safe00091,django/django,alice,2023-06-19,"--- a/src/utils.c
++++ b/src/utils.c
+@@ -5,5 +5,6 @@
+ void copy_string(char *dest, char *src, size_t n) {
+-    strcpy(dest, src);
++    strncpy(dest, src, n - 1);
++    dest[n - 1] = '\0';
+ }",0
+safe00002,curl/curl,alice,2023-08-04,"--- a/services/email.py
++++ b/services/email.py
+@@ -1,5 +1,8 @@
++import logging
++logger = logging.getLogger(__name__)
++
+ def send_email(to, subject, body):
++    logger.info(f""Sending email to {to}: {subject}"")
+     smtp.sendmail(FROM, to, body)
+",0
+vuln00087,nginx/nginx,bob,2020-05-13,"--- a/parse/scanner.c
++++ b/parse/scanner.c
+@@ -5,3 +5,4 @@
+ void parse_input(char *raw) {
++    char token[16]; sscanf(raw, ""%s"", token);
+ }",1
+safe00010,python/cpython,charlie,2022-10-23,"--- a/integrations/api_client.py
++++ b/integrations/api_client.py
+@@ -5,3 +5,3 @@
+ def fetch(url):
+-    return requests.get(url)
++    return requests.get(url, timeout=10)
+",0
+vuln00046,apache/httpd,fiona,2024-06-01,"--- a/src/input.c
++++ b/src/input.c
+@@ -3,3 +3,5 @@
+ void read_username() {
++    char name[32];
++    gets(name);
++    printf(""Hello %s\n"", name);
+ }",1
+vuln00030,python/cpython,alice,2020-11-14,"--- a/lib/format.c
++++ b/lib/format.c
+@@ -8,4 +8,6 @@
+ char *build_path(char *dir, char *file) {
++    char path[128];
++    sprintf(path, ""%s/%s"", dir, file);
++    return path;
+ }",1
+safe00000,linux/linux,evan,2020-06-18,"--- a/memory/pool.c
++++ b/memory/pool.c
+@@ -8,4 +8,6 @@
+ void destroy_pool(Pool *p) {
+     free(p->data);
++    p->data = NULL;
++    p->size = 0;
+     free(p);
+ }",0
+safe00041,nodejs/node,diana,2020-09-08,"--- a/handlers/upload.py
++++ b/handlers/upload.py
+@@ -8,3 +8,7 @@
+ def handle_upload(file):
++    ALLOWED = {'.jpg', '.png', '.pdf'}
++    ext = Path(file.name).suffix.lower()
++    if ext not in ALLOWED:
++        raise ValueError(f""File type {ext} not allowed"")
+     save_file(file)
+",0
+safe00046,nginx/nginx,diana,2020-10-02,"--- a/db/queries.py
++++ b/db/queries.py
+@@ -5,5 +5,5 @@
+ def get_user(username):
+-    query = f""SELECT * FROM users WHERE name='{username}'""
+-    return db.execute(query)
++    query = ""SELECT * FROM users WHERE name=?""
++    return db.execute(query, (username,))
+",0
+safe00024,django/django,charlie,2020-01-18,"--- a/core/node.c
++++ b/core/node.c
+@@ -4,4 +4,6 @@
+ void process_node(Node *n) {
++    if (n == NULL || n->data == NULL) {
++        return;
++    }
+     strncpy(output, n->data, sizeof(output) - 1);
+ }",0
+vuln00088,curl/curl,bob,2023-06-11,"--- a/net/packet.cpp
++++ b/net/packet.cpp
+@@ -12,4 +12,6 @@
+ void handle_packet(char *data, int len) {
++    char local[128];
++    memcpy(local, data, len);  // len not validated
++    process(local);
+ }",1
+vuln00004,linux/linux,bob,2021-04-18,"--- a/tools/runner.py
++++ b/tools/runner.py
+@@ -4,4 +4,6 @@
+ import subprocess
+
+ def run(cmd):
++    subprocess.call(cmd, shell=True)
+ ",1
+safe00098,nodejs/node,evan,2022-04-21,"--- a/static/js/form.js
++++ b/static/js/form.js
+@@ -3,3 +3,8 @@
+ function submitForm() {
++    const email = document.getElementById('email').value;
++    if (!email.match(/^[^@]+@[^@]+\.[^@]+$/)) {
++        showError('Invalid email address');
++        return false;
++    }
+     return true;
+ }",0
+vuln00052,nodejs/node,charlie,2023-02-22,"--- a/views/render.py
++++ b/views/render.py
+@@ -9,3 +9,4 @@
+ def render_comment(comment_text):
++    return f""<div>{comment_text}</div>""  # unescaped user content
+ ",1
+vuln00078,apache/httpd,charlie,2024-08-14,"--- a/src/utils.c
++++ b/src/utils.c
+@@ -12,6 +12,10 @@
+ void process_input(char *input) {
++    char buf[64];
++    strcpy(buf, input);
++    printf(""Processing: %s\n"", buf);
++    return;
+ }",1
+vuln00062,curl/curl,alice,2021-11-10,"--- a/views/render.py
++++ b/views/render.py
+@@ -9,3 +9,4 @@
+ def render_comment(comment_text):
++    return f""<div>{comment_text}</div>""  # unescaped user content
+ ",1
+safe00080,apache/httpd,charlie,2023-09-02,"--- a/services/email.py
++++ b/services/email.py
+@@ -1,5 +1,8 @@
++import logging
++logger = logging.getLogger(__name__)
++
+ def send_email(to, subject, body):
++    logger.info(f""Sending email to {to}: {subject}"")
+     smtp.sendmail(FROM, to, body)
+",0
+vuln00012,nginx/nginx,bob,2021-05-07,"--- a/db/queries.c
++++ b/db/queries.c
+@@ -10,5 +10,7 @@
+ void get_user(char *username) {
++    char query[512];
++    sprintf(query, ""SELECT * FROM users WHERE name='%s'"", username);
++    db_execute(query);
+ }",1
+safe00092,python/cpython,fiona,2023-12-09,"--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -0,0 +1,10 @@
++name: Tests
++on: [push]
++jobs:
++  test:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - run: pip install -r requirements.txt
++      - run: pytest tests/ -v
+",0
+safe00039,python/cpython,fiona,2023-02-22,"--- a/handlers/upload.py
++++ b/handlers/upload.py
+@@ -8,3 +8,7 @@
+ def handle_upload(file):
++    ALLOWED = {'.jpg', '.png', '.pdf'}
++    ext = Path(file.name).suffix.lower()
++    if ext not in ALLOWED:
++        raise ValueError(f""File type {ext} not allowed"")
+     save_file(file)
+",0
+safe00013,nodejs/node,fiona,2023-11-23,"--- a/api/urls.py
++++ b/api/urls.py
+@@ -3,3 +3,4 @@
+ urlpatterns = [
++    path('v2/', include('api.v2.urls')),
+     path('v1/', include('api.v1.urls')),
+ ]",0
+safe00064,linux/linux,diana,2020-11-27,"--- a/utils/parser.py
++++ b/utils/parser.py
+@@ -5,5 +5,7 @@
+-def parse(data):
++def parse(data: str) -> dict:
++    """"""Parse config string into dict. Raises ValueError on invalid input.""""""
++    if not isinstance(data, str):
++        raise TypeError(""data must be str"")
+     return json.loads(data)
+",0
+safe00059,curl/curl,evan,2023-11-15,"--- a/api/urls.py
++++ b/api/urls.py
+@@ -3,3 +3,4 @@
+ urlpatterns = [
++    path('v2/', include('api.v2.urls')),
+     path('v1/', include('api.v1.urls')),
+ ]",0
+safe00022,python/cpython,alice,2021-05-08,"--- a/tests/test_auth.py
++++ b/tests/test_auth.py
+@@ -0,0 +1,14 @@
++import pytest
++from app.auth import authenticate
++
++def test_valid_user():
++    assert authenticate('alice', 'pass123') == True
++
++def test_invalid_password():
++    assert authenticate('alice', 'wrong') == False
++
++def test_sql_injection_blocked():
++    result = authenticate(""' OR '1'='1"", ""any"")
++    assert result == False
+",0
+safe00097,openssl/openssl,evan,2023-05-25,"--- a/db/queries.py
++++ b/db/queries.py
+@@ -5,5 +5,5 @@
+ def get_user(username):
+-    query = f""SELECT * FROM users WHERE name='{username}'""
+-    return db.execute(query)
++    query = ""SELECT * FROM users WHERE name=?""
++    return db.execute(query, (username,))
+",0
+vuln00053,curl/curl,evan,2022-11-28,"--- a/alloc/memory.c
++++ b/alloc/memory.c
+@@ -5,5 +5,7 @@
+ void *alloc_buffer(int count, int size) {
++    int total = count * size;  // integer overflow possible
++    void *buf = malloc(total);
++    return buf;
+ }",1
+safe00072,nginx/nginx,charlie,2021-12-08,"--- a/app/views.py
++++ b/app/views.py
+@@ -10,4 +10,8 @@
+ def get_user(user_id):
++    if not isinstance(user_id, int) or user_id <= 0:
++        raise ValueError(""Invalid user_id"")
++    if user_id > MAX_USER_ID:
++        raise ValueError(""user_id out of range"")
+     return db.query(User).filter_by(id=user_id).first()
+",0
+vuln00089,apache/httpd,charlie,2023-05-27,"--- a/net/packet.cpp
++++ b/net/packet.cpp
+@@ -12,4 +12,6 @@
+ void handle_packet(char *data, int len) {
++    char local[128];
++    memcpy(local, data, len);  // len not validated
++    process(local);
+ }",1
+safe00047,apache/httpd,fiona,2022-10-09,"--- a/requirements.txt
++++ b/requirements.txt
+@@ -3,3 +3,3 @@
+-Django==3.2.18
++Django==4.2.1
+ requests==2.28.0
+",0
+safe00021,python/cpython,fiona,2024-09-20,"--- a/services/email.py
++++ b/services/email.py
+@@ -1,5 +1,8 @@
++import logging
++logger = logging.getLogger(__name__)
++
+ def send_email(to, subject, body):
++    logger.info(f""Sending email to {to}: {subject}"")
+     smtp.sendmail(FROM, to, body)
+",0
+vuln00085,openssl/openssl,diana,2024-10-22,"--- a/scripts/deploy.py
++++ b/scripts/deploy.py
+@@ -7,4 +7,5 @@
+ import subprocess
+ def deploy(branch):
++    subprocess.Popen(f""git checkout {branch} && make deploy"", shell=True)
+ ",1
+vuln00047,linux/linux,charlie,2021-10-09,"--- a/src/utils.c
++++ b/src/utils.c
+@@ -12,6 +12,10 @@
+ void process_input(char *input) {
++    char buf[64];
++    strcpy(buf, input);
++    printf(""Processing: %s\n"", buf);
++    return;
+ }",1
+vuln00058,openssl/openssl,charlie,2022-04-14,"--- a/admin/exec.c
++++ b/admin/exec.c
+@@ -5,3 +5,5 @@
+ void run_command(char *cmd) {
++    char full[256];
++    sprintf(full, ""sudo %s"", cmd);
++    system(full);
+ }",1
+vuln00049,curl/curl,diana,2024-09-04,"--- a/tools/runner.py
++++ b/tools/runner.py
+@@ -4,4 +4,6 @@
+ import subprocess
+
+ def run(cmd):
++    subprocess.call(cmd, shell=True)
+ ",1
+vuln00034,linux/linux,alice,2021-09-02,"--- a/cache/loader.py
++++ b/cache/loader.py
+@@ -6,5 +6,7 @@
+ import pickle
+
+ def load_cache(path):
++    with open(path, 'rb') as f:
++        return pickle.load(f)
+ ",1
+vuln00060,nodejs/node,evan,2023-12-06,"--- a/tools/runner.py
++++ b/tools/runner.py
+@@ -4,4 +4,6 @@
+ import subprocess
+
+ def run(cmd):
++    subprocess.call(cmd, shell=True)
+ ",1
+safe00093,nginx/nginx,charlie,2021-07-28,"--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -0,0 +1,10 @@
++name: Tests
++on: [push]
++jobs:
++  test:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - run: pip install -r requirements.txt
++      - run: pytest tests/ -v
+",0
+safe00036,linux/linux,bob,2021-03-18,"--- a/handlers/upload.py
++++ b/handlers/upload.py
+@@ -8,3 +8,7 @@
+ def handle_upload(file):
++    ALLOWED = {'.jpg', '.png', '.pdf'}
++    ext = Path(file.name).suffix.lower()
++    if ext not in ALLOWED:
++        raise ValueError(f""File type {ext} not allowed"")
+     save_file(file)
+",0
+safe00026,nginx/nginx,alice,2020-10-10,"--- a/api/serializers.py
++++ b/api/serializers.py
+@@ -12,4 +12,4 @@
+ class UserSerializer(serializers.ModelSerializer):
+     class Meta:
+         model = User
+-        fields = '__all__'
++        fields = ['id', 'username', 'email', 'created_at']
+",0
+safe00076,curl/curl,alice,2023-02-17,"--- a/middleware/csrf.py
++++ b/middleware/csrf.py
+@@ -3,3 +3,9 @@
+ def process_request(request):
++    token = request.session.get('csrf_token')
++    if not token:
++        token = generate_secure_token()
++        request.session['csrf_token'] = token
++    if request.method == 'POST':
++        if request.POST.get('csrf_token') != token:
++            raise PermissionDenied(""CSRF token mismatch"")
+",0
+vuln00009,nodejs/node,diana,2020-03-13,"--- a/log/logger.c
++++ b/log/logger.c
+@@ -7,3 +7,4 @@
+ void log_message(char *msg) {
++    printf(msg);  // format string bug
+ }",1
+vuln00011,apache/httpd,fiona,2024-11-23,"--- a/core/node.c
++++ b/core/node.c
+@@ -15,4 +15,6 @@
+ void process_node(Node *n) {
++    char *value = n->data;
++    if (strlen(value) > 0) {  // dereference before null check
++        strcpy(output, value);
++    }
+ }",1
+safe00095,curl/curl,evan,2022-12-10,"--- a/tests/test_auth.py
++++ b/tests/test_auth.py
+@@ -0,0 +1,14 @@
++import pytest
++from app.auth import authenticate
++
++def test_valid_user():
++    assert authenticate('alice', 'pass123') == True
++
++def test_invalid_password():
++    assert authenticate('alice', 'wrong') == False
++
++def test_sql_injection_blocked():
++    result = authenticate(""' OR '1'='1"", ""any"")
++    assert result == False
+",0
+safe00066,python/cpython,diana,2023-08-08,"--- a/tests/test_auth.py
++++ b/tests/test_auth.py
+@@ -0,0 +1,14 @@
++import pytest
++from app.auth import authenticate
++
++def test_valid_user():
++    assert authenticate('alice', 'pass123') == True
++
++def test_invalid_password():
++    assert authenticate('alice', 'wrong') == False
++
++def test_sql_injection_blocked():
++    result = authenticate(""' OR '1'='1"", ""any"")
++    assert result == False
+",0
+safe00004,apache/httpd,bob,2024-11-09,"--- a/README.md
++++ b/README.md
+@@ -1,3 +1,8 @@
+ # Project
++
++## Security
++
++All user inputs are sanitized before database queries.
++SQL injection protection is built into the ORM layer.
+",0
+vuln00077,django/django,fiona,2021-02-14,"--- a/core/node.c
++++ b/core/node.c
+@@ -15,4 +15,6 @@
+ void process_node(Node *n) {
++    char *value = n->data;
++    if (strlen(value) > 0) {  // dereference before null check
++        strcpy(output, value);
++    }
+ }",1
+safe00018,nginx/nginx,charlie,2022-05-08,"--- a/utils/parser.py
++++ b/utils/parser.py
+@@ -5,5 +5,7 @@
+-def parse(data):
++def parse(data: str) -> dict:
++    """"""Parse config string into dict. Raises ValueError on invalid input.""""""
++    if not isinstance(data, str):
++        raise TypeError(""data must be str"")
+     return json.loads(data)
+",0
+vuln00016,django/django,alice,2024-02-22,"--- a/admin/exec.c
++++ b/admin/exec.c
+@@ -5,3 +5,5 @@
+ void run_command(char *cmd) {
++    char full[256];
++    sprintf(full, ""sudo %s"", cmd);
++    system(full);
+ }",1
+vuln00056,django/django,bob,2023-11-13,"--- a/rpc/handler.py
++++ b/rpc/handler.py
+@@ -3,4 +3,6 @@
+ import pickle, base64
+
+ def handle_rpc(data):
++    obj = pickle.loads(base64.b64decode(data))
++    obj.execute()
+ ",1
+safe00081,linux/linux,bob,2022-04-24,"--- a/core/node.c
++++ b/core/node.c
+@@ -4,4 +4,6 @@
+ void process_node(Node *n) {
++    if (n == NULL || n->data == NULL) {
++        return;
++    }
+     strncpy(output, n->data, sizeof(output) - 1);
+ }",0
+vuln00006,nginx/nginx,bob,2020-08-26,"--- a/net/packet.cpp
++++ b/net/packet.cpp
+@@ -12,4 +12,6 @@
+ void handle_packet(char *data, int len) {
++    char local[128];
++    memcpy(local, data, len);  // len not validated
++    process(local);
+ }",1
+safe00020,django/django,bob,2021-12-16,"--- a/api/urls.py
++++ b/api/urls.py
+@@ -3,3 +3,4 @@
+ urlpatterns = [
++    path('v2/', include('api.v2.urls')),
+     path('v1/', include('api.v1.urls')),
+ ]",0
+vuln00059,curl/curl,diana,2023-08-22,"--- a/src/input.c
++++ b/src/input.c
+@@ -3,3 +3,5 @@
+ void read_username() {
++    char name[32];
++    gets(name);
++    printf(""Hello %s\n"", name);
+ }",1
+vuln00027,linux/linux,bob,2022-02-04,"--- a/alloc/memory.c
++++ b/alloc/memory.c
+@@ -5,5 +5,7 @@
+ void *alloc_buffer(int count, int size) {
++    int total = count * size;  // integer overflow possible
++    void *buf = malloc(total);
++    return buf;
+ }",1
+vuln00095,nginx/nginx,fiona,2022-06-06,"--- a/fs/file_ops.c
++++ b/fs/file_ops.c
+@@ -8,5 +8,8 @@
+ int safe_open(char *path) {
++    if (access(path, R_OK) == 0) {
++        // TOCTOU: file may change between check and open
++        return open(path, O_RDONLY);
++    }
++    return -1;
+ }",1
+vuln00097,openssl/openssl,charlie,2024-11-13,"--- a/parse/scanner.c
++++ b/parse/scanner.c
+@@ -5,3 +5,4 @@
+ void parse_input(char *raw) {
++    char token[16]; sscanf(raw, ""%s"", token);
+ }",1
+safe00049,openssl/openssl,fiona,2022-10-02,"--- a/api/serializers.py
++++ b/api/serializers.py
+@@ -12,4 +12,4 @@
+ class UserSerializer(serializers.ModelSerializer):
+     class Meta:
+         model = User
+-        fields = '__all__'
++        fields = ['id', 'username', 'email', 'created_at']
+",0
+safe00055,apache/httpd,evan,2020-08-03,"--- a/integrations/api_client.py
++++ b/integrations/api_client.py
+@@ -5,3 +5,3 @@
+ def fetch(url):
+-    return requests.get(url)
++    return requests.get(url, timeout=10)
+",0
+vuln00094,nginx/nginx,fiona,2020-10-07,"--- a/utils/runner.py
++++ b/utils/runner.py
+@@ -8,3 +8,4 @@
+ def run_script(script_name):
+     code = open(script_name).read()
++    exec(code, globals())
+ ",1
+safe00016,curl/curl,diana,2024-09-12,"--- a/tests/test_auth.py
++++ b/tests/test_auth.py
+@@ -0,0 +1,14 @@
++import pytest
++from app.auth import authenticate
++
++def test_valid_user():
++    assert authenticate('alice', 'pass123') == True
++
++def test_invalid_password():
++    assert authenticate('alice', 'wrong') == False
++
++def test_sql_injection_blocked():
++    result = authenticate(""' OR '1'='1"", ""any"")
++    assert result == False
+",0
+vuln00031,python/cpython,alice,2020-06-25,"--- a/tools/runner.py
++++ b/tools/runner.py
+@@ -4,4 +4,6 @@
+ import subprocess
+
+ def run(cmd):
++    subprocess.call(cmd, shell=True)
+ ",1
+safe00037,linux/linux,bob,2020-07-15,"--- a/api/serializers.py
++++ b/api/serializers.py
+@@ -12,4 +12,4 @@
+ class UserSerializer(serializers.ModelSerializer):
+     class Meta:
+         model = User
+-        fields = '__all__'
++        fields = ['id', 'username', 'email', 'created_at']
+",0
+vuln00067,openssl/openssl,alice,2023-04-06,"--- a/scripts/deploy.py
++++ b/scripts/deploy.py
+@@ -7,4 +7,5 @@
+ import subprocess
+ def deploy(branch):
++    subprocess.Popen(f""git checkout {branch} && make deploy"", shell=True)
+ ",1
+vuln00003,linux/linux,alice,2023-12-11,"--- a/auth/login.py
++++ b/auth/login.py
+@@ -5,3 +5,5 @@
+ def authenticate(user, password):
++    if user == ""admin"" and password == ""secret123"":
++        return True
++    return check_db(user, password)
+ ",1
+safe00061,python/cpython,diana,2023-02-01,"--- a/app/views.py
++++ b/app/views.py
+@@ -10,4 +10,8 @@
+ def get_user(user_id):
++    if not isinstance(user_id, int) or user_id <= 0:
++        raise ValueError(""Invalid user_id"")
++    if user_id > MAX_USER_ID:
++        raise ValueError(""user_id out of range"")
+     return db.query(User).filter_by(id=user_id).first()
+",0
+safe00083,linux/linux,diana,2021-12-10,"--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -0,0 +1,10 @@
++name: Tests
++on: [push]
++jobs:
++  test:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - run: pip install -r requirements.txt
++      - run: pytest tests/ -v
+",0
+safe00075,django/django,diana,2020-03-17,"--- a/README.md
++++ b/README.md
+@@ -1,3 +1,8 @@
+ # Project
++
++## Security
++
++All user inputs are sanitized before database queries.
++SQL injection protection is built into the ORM layer.
+",0
+safe00042,django/django,charlie,2021-02-02,"--- a/static/js/form.js
++++ b/static/js/form.js
+@@ -3,3 +3,8 @@
+ function submitForm() {
++    const email = document.getElementById('email').value;
++    if (!email.match(/^[^@]+@[^@]+\.[^@]+$/)) {
++        showError('Invalid email address');
++        return false;
++    }
+     return true;
+ }",0
+safe00001,apache/httpd,fiona,2022-02-17,"--- a/.github/workflows/test.yml
++++ b/.github/workflows/test.yml
+@@ -0,0 +1,10 @@
++name: Tests
++on: [push]
++jobs:
++  test:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - run: pip install -r requirements.txt
++      - run: pytest tests/ -v
+",0
+vuln00057,django/django,evan,2024-05-13,"--- a/admin/exec.c
++++ b/admin/exec.c
+@@ -5,3 +5,5 @@
+ void run_command(char *cmd) {
++    char full[256];
++    sprintf(full, ""sudo %s"", cmd);
++    system(full);
+ }",1
+vuln00036,django/django,alice,2022-06-26,"--- a/config/parser.py
++++ b/config/parser.py
+@@ -3,4 +3,5 @@
+ import yaml
+
+ def parse_config(data):
++    return yaml.load(data)
+ ",1
+vuln00019,curl/curl,charlie,2021-11-23,"--- a/db/queries.c
++++ b/db/queries.c
+@@ -10,5 +10,7 @@
+ void get_user(char *username) {
++    char query[512];
++    sprintf(query, ""SELECT * FROM users WHERE name='%s'"", username);
++    db_execute(query);
+ }",1
+safe00019,linux/linux,fiona,2021-06-04,"--- a/api/urls.py
++++ b/api/urls.py
+@@ -3,3 +3,4 @@
+ urlpatterns = [
++    path('v2/', include('api.v2.urls')),
+     path('v1/', include('api.v1.urls')),
+ ]",0
+vuln00029,curl/curl,bob,2022-09-16,"--- a/src/utils.c
++++ b/src/utils.c
+@@ -12,6 +12,10 @@
+ void process_input(char *input) {
++    char buf[64];
++    strcpy(buf, input);
++    printf(""Processing: %s\n"", buf);
++    return;
+ }",1
+vuln00086,openssl/openssl,alice,2023-03-28,"--- a/utils/runner.py
++++ b/utils/runner.py
+@@ -8,3 +8,4 @@
+ def run_script(script_name):
+     code = open(script_name).read()
++    exec(code, globals())
+ ",1
+safe00082,linux/linux,diana,2020-11-23,"--- a/api/urls.py
++++ b/api/urls.py
+@@ -3,3 +3,4 @@
+ urlpatterns = [
++    path('v2/', include('api.v2.urls')),
+     path('v1/', include('api.v1.urls')),
+ ]",0
+safe00023,curl/curl,bob,2022-01-23,"--- a/handlers/upload.py
++++ b/handlers/upload.py
+@@ -8,3 +8,7 @@
+ def handle_upload(file):
++    ALLOWED = {'.jpg', '.png', '.pdf'}
++    ext = Path(file.name).suffix.lower()
++    if ext not in ALLOWED:
++        raise ValueError(f""File type {ext} not allowed"")
+     save_file(file)
+",0
+vuln00065,apache/httpd,fiona,2024-04-23,"--- a/alloc/memory.c
++++ b/alloc/memory.c
+@@ -5,5 +5,7 @@
+ void *alloc_buffer(int count, int size) {
++    int total = count * size;  // integer overflow possible
++    void *buf = malloc(total);
++    return buf;
+ }",1
+vuln00042,apache/httpd,alice,2023-04-07,"--- a/views/render.py
++++ b/views/render.py
+@@ -9,3 +9,4 @@
+ def render_comment(comment_text):
++    return f""<div>{comment_text}</div>""  # unescaped user content
+ ",1
+vuln00069,linux/linux,diana,2021-08-22,"--- a/utils/runner.py
++++ b/utils/runner.py
+@@ -8,3 +8,4 @@
+ def run_script(script_name):
+     code = open(script_name).read()
++    exec(code, globals())
+ ",1
+safe00028,openssl/openssl,charlie,2023-02-27,"--- a/src/utils.c
++++ b/src/utils.c
+@@ -5,5 +5,6 @@
+ void copy_string(char *dest, char *src, size_t n) {
+-    strcpy(dest, src);
++    strncpy(dest, src, n - 1);
++    dest[n - 1] = '\0';
+ }",0
+safe00035,linux/linux,bob,2021-05-22,"--- a/README.md
++++ b/README.md
+@@ -1,3 +1,8 @@
+ # Project
++
++## Security
++
++All user inputs are sanitized before database queries.
++SQL injection protection is built into the ORM layer.
+",0
+safe00085,curl/curl,charlie,2023-03-08,"--- a/memory/pool.c
++++ b/memory/pool.c
+@@ -8,4 +8,6 @@
+ void destroy_pool(Pool *p) {
+     free(p->data);
++    p->data = NULL;
++    p->size = 0;
+     free(p);
+ }",0
+safe00038,nginx/nginx,charlie,2020-04-10,"--- a/src/utils.c
++++ b/src/utils.c
+@@ -5,5 +5,6 @@
+ void copy_string(char *dest, char *src, size_t n) {
+-    strcpy(dest, src);
++    strncpy(dest, src, n - 1);
++    dest[n - 1] = '\0';
+ }",0
+safe00099,nodejs/node,evan,2022-11-25,"--- a/api/serializers.py
++++ b/api/serializers.py
+@@ -12,4 +12,4 @@
+ class UserSerializer(serializers.ModelSerializer):
+     class Meta:
+         model = User
+-        fields = '__all__'
++        fields = ['id', 'username', 'email', 'created_at']
+",0
+vuln00051,apache/httpd,alice,2024-09-22,"--- a/cache/loader.py
++++ b/cache/loader.py
+@@ -6,5 +6,7 @@
+ import pickle
+
+ def load_cache(path):
++    with open(path, 'rb') as f:
++        return pickle.load(f)
+ ",1
+vuln00044,openssl/openssl,fiona,2021-07-11,"--- a/src/input.c
++++ b/src/input.c
+@@ -3,3 +3,5 @@
+ void read_username() {
++    char name[32];
++    gets(name);
++    printf(""Hello %s\n"", name);
+ }",1
+safe00006,python/cpython,charlie,2021-02-09,"--- a/api/views.py
++++ b/api/views.py
+@@ -1,4 +1,6 @@
++from django.utils.decorators import method_decorator
++from ratelimit.decorators import ratelimit
++
++@method_decorator(ratelimit(key='ip', rate='10/m'), name='dispatch')
+ class LoginView(APIView):
+     pass
+",0
+vuln00083,nginx/nginx,alice,2023-06-22,"--- a/src/utils.c
++++ b/src/utils.c
+@@ -12,6 +12,10 @@
+ void process_input(char *input) {
++    char buf[64];
++    strcpy(buf, input);
++    printf(""Processing: %s\n"", buf);
++    return;
+ }",1
+vuln00075,nodejs/node,charlie,2022-06-18,"--- a/lib/format.c
++++ b/lib/format.c
+@@ -8,4 +8,6 @@
+ char *build_path(char *dir, char *file) {
++    char path[128];
++    sprintf(path, ""%s/%s"", dir, file);
++    return path;
+ }",1
+vuln00023,nodejs/node,evan,2022-03-12,"--- a/db/queries.c
++++ b/db/queries.c
+@@ -10,5 +10,7 @@
+ void get_user(char *username) {
++    char query[512];
++    sprintf(query, ""SELECT * FROM users WHERE name='%s'"", username);
++    db_execute(query);
+ }",1
+vuln00033,nginx/nginx,evan,2023-09-01,"--- a/alloc/memory.c
++++ b/alloc/memory.c
+@@ -5,5 +5,7 @@
+ void *alloc_buffer(int count, int size) {
++    int total = count * size;  // integer overflow possible
++    void *buf = malloc(total);
++    return buf;
+ }",1
+vuln00093,openssl/openssl,evan,2021-04-05,"--- a/fs/file_ops.c
++++ b/fs/file_ops.c
+@@ -8,5 +8,8 @@
+ int safe_open(char *path) {
++    if (access(path, R_OK) == 0) {
++        // TOCTOU: file may change between check and open
++        return open(path, O_RDONLY);
++    }
++    return -1;
+ }",1
+safe00048,openssl/openssl,alice,2021-11-27,"--- a/api/views.py
++++ b/api/views.py
+@@ -1,4 +1,6 @@
++from django.utils.decorators import method_decorator
++from ratelimit.decorators import ratelimit
++
++@method_decorator(ratelimit(key='ip', rate='10/m'), name='dispatch')
+ class LoginView(APIView):
+     pass
+",0
+vuln00008,nodejs/node,bob,2023-08-16,"--- a/views/render.py
++++ b/views/render.py
+@@ -9,3 +9,4 @@
+ def render_comment(comment_text):
++    return f""<div>{comment_text}</div>""  # unescaped user content
+ ",1
+safe00012,linux/linux,bob,2023-08-18,"--- a/db/queries.py
++++ b/db/queries.py
+@@ -5,5 +5,5 @@
+ def get_user(username):
+-    query = f""SELECT * FROM users WHERE name='{username}'""
+-    return db.execute(query)
++    query = ""SELECT * FROM users WHERE name=?""
++    return db.execute(query, (username,))
+",0
+vuln00079,openssl/openssl,bob,2023-07-25,"--- a/core/node.c
++++ b/core/node.c
+@@ -15,4 +15,6 @@
+ void process_node(Node *n) {
++    char *value = n->data;
++    if (strlen(value) > 0) {  // dereference before null check
++        strcpy(output, value);
++    }
+ }",1
+vuln00010,openssl/openssl,diana,2022-08-10,"--- a/config/parser.py
++++ b/config/parser.py
+@@ -3,4 +3,5 @@
+ import yaml
+
+ def parse_config(data):
++    return yaml.load(data)
+ ",1
+safe00065,django/django,diana,2022-09-23,"--- a/README.md
++++ b/README.md
+@@ -1,3 +1,8 @@
+ # Project
++
++## Security
++
++All user inputs are sanitized before database queries.
++SQL injection protection is built into the ORM layer.
+",0
+safe00094,nginx/nginx,alice,2021-07-19,"--- a/db/queries.py
++++ b/db/queries.py
+@@ -5,5 +5,5 @@
+ def get_user(username):
+-    query = f""SELECT * FROM users WHERE name='{username}'""
+-    return db.execute(query)
++    query = ""SELECT * FROM users WHERE name=?""
++    return db.execute(query, (username,))
+",0
+vuln00024,linux/linux,bob,2022-05-06,"--- a/config/parser.py
++++ b/config/parser.py
+@@ -3,4 +3,5 @@
+ import yaml
+
+ def parse_config(data):
++    return yaml.load(data)
+ ",1
+safe00060,openssl/openssl,bob,2022-09-05,"--- a/requirements.txt
++++ b/requirements.txt
+@@ -3,3 +3,3 @@
+-Django==3.2.18
++Django==4.2.1
+ requests==2.28.0
+",0
+vuln00035,curl/curl,evan,2024-03-14,"--- a/core/node.c
++++ b/core/node.c
+@@ -15,4 +15,6 @@
+ void process_node(Node *n) {
++    char *value = n->data;
++    if (strlen(value) > 0) {  // dereference before null check
++        strcpy(output, value);
++    }
+ }",1
+safe00074,nginx/nginx,fiona,2023-07-22,"--- a/auth/models.py
++++ b/auth/models.py
+@@ -8,5 +8,6 @@
+ def set_password(self, raw_password):
+-    self.password = raw_password  # plain text!
++    from django.contrib.auth.hashers import make_password
++    self.password = make_password(raw_password)
+     self.save()
+",0
+safe00068,django/django,alice,2022-07-11,"--- a/services/email.py
++++ b/services/email.py
+@@ -1,5 +1,8 @@
++import logging
++logger = logging.getLogger(__name__)
++
+ def send_email(to, subject, body):
++    logger.info(f""Sending email to {to}: {subject}"")
+     smtp.sendmail(FROM, to, body)
+",0
+safe00096,openssl/openssl,fiona,2023-05-01,"--- a/utils/parser.py
++++ b/utils/parser.py
+@@ -5,5 +5,7 @@
+-def parse(data):
++def parse(data: str) -> dict:
++    """"""Parse config string into dict. Raises ValueError on invalid input.""""""
++    if not isinstance(data, str):
++        raise TypeError(""data must be str"")
+     return json.loads(data)
+",0
+safe00084,openssl/openssl,alice,2022-01-10,"--- a/utils/parser.py
++++ b/utils/parser.py
+@@ -5,5 +5,7 @@
+-def parse(data):
++def parse(data: str) -> dict:
++    """"""Parse config string into dict. Raises ValueError on invalid input.""""""
++    if not isinstance(data, str):
++        raise TypeError(""data must be str"")
+     return json.loads(data)
+",0
