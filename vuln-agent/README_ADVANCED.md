@@ -92,7 +92,17 @@ Top driver: "Lines of code added" [SHAP: +0.03]
 
 ## Quickstart
 
-### 1. Install dependencies
+### Option A — Docker (one command)
+```bash
+docker compose up --build
+# API: http://localhost:8000/docs
+# Dashboard: http://localhost:3000
+```
+Models auto-train on first start if not present. Set `API_KEY=secret` and `GITHUB_TOKEN=...` in a `.env` file at the project root.
+
+---
+
+### Option B — Manual
 ```bash
 pip install -r advanced_predictor/requirements.txt
 ```
