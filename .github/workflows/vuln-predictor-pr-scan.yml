@@ -1,0 +1,128 @@
+name: VulnPredictor PR Risk
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+defaults:
+  run:
+    working-directory: vuln-agent
+
+jobs:
+  vuln-predict:
+    name: Vulnerability Risk Assessment
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD > /tmp/pr.diff
+          echo "diff_size=$(wc -c < /tmp/pr.diff)" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: vuln-agent/advanced_predictor/requirements.txt
+
+      - name: Install + train models
+        run: |
+          pip install -q -r advanced_predictor/requirements.txt
+          python advanced_predictor/training/create_sample_data.py
+          python advanced_predictor/training/train.py
+
+      - name: Score diff
+        id: score
+        run: |
+          python - <<'PYEOF'
+          import json, sys, os
+          sys.path.insert(0, ".")
+          from advanced_predictor.inference import VulnerabilityPredictor
+
+          diff = open("/tmp/pr.diff").read()
+          if not diff.strip():
+              print("RISK_SCORE=0.0")
+              print("RISK_PERCENT=0.0%")
+              print("PREDICTION=benign")
+              print("CONFIDENCE=high")
+              print("HAS_DANGEROUS=false")
+          else:
+              p = VulnerabilityPredictor()
+              r = p.predict(diff)
+              print(f"RISK_SCORE={r['risk_score']:.3f}")
+              print(f"RISK_PERCENT={r['risk_percent']}")
+              print(f"PREDICTION={r['prediction']}")
+              print(f"CONFIDENCE={r['confidence']}")
+              print(f"HAS_DANGEROUS={'true' if r['features']['has_dangerous_apis'] else 'false'}")
+          PYEOF
+        env:
+          PYTHONPATH: vuln-agent
+
+      - name: Delete old bot comments
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            for (const c of comments.data) {
+              if (c.user.login === 'github-actions[bot]' && c.body.includes('Vulnerability Risk')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
+            }
+
+      - name: Post risk comment
+        uses: actions/github-script@v7
+        env:
+          RISK_SCORE: ${{ steps.score.outputs.RISK_SCORE }}
+          RISK_PERCENT: ${{ steps.score.outputs.RISK_PERCENT }}
+          PREDICTION: ${{ steps.score.outputs.PREDICTION }}
+          CONFIDENCE: ${{ steps.score.outputs.CONFIDENCE }}
+          HAS_DANGEROUS: ${{ steps.score.outputs.HAS_DANGEROUS }}
+        with:
+          script: |
+            const score = parseFloat(process.env.RISK_SCORE || '0');
+            const pct = process.env.RISK_PERCENT || '0%';
+            const pred = process.env.PREDICTION || 'benign';
+            const conf = process.env.CONFIDENCE || 'low';
+            const dangerous = process.env.HAS_DANGEROUS === 'true';
+
+            const emoji = score >= 0.7 ? '🔴' : score >= 0.4 ? '🟡' : '🟢';
+            const level = score >= 0.7 ? 'High Risk' : score >= 0.4 ? 'Medium Risk' : 'Low Risk';
+            const predEmoji = pred === 'vulnerable' ? '⚠️ Vulnerable' : '✅ Benign';
+
+            const body = [
+              `## ${emoji} Vulnerability Risk: ${level}`,
+              '',
+              '| Metric | Value |',
+              '|--------|-------|',
+              `| Risk Score | **${pct}** |`,
+              `| Prediction | ${predEmoji} |`,
+              `| Dangerous APIs | ${dangerous ? '⚠️ Detected' : 'None'} |`,
+              `| Confidence | ${conf} |`,
+              '',
+              score >= 0.7 ? '**Recommendations:**\n- Review all API calls in this diff for unsafe patterns\n- Consider requesting an additional security review' : '',
+              '',
+              '_Powered by [VulnPredictor](https://github.com/krkhead/vuln-agent) — XGBoost + Random Forest ensemble_',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
