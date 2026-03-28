@@ -2,7 +2,7 @@
 
 > ML-powered code vulnerability detection at commit time — before CVEs are published.
 
-[![CI](https://github.com/krkhead/vuln-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/krkhead/vuln-agent/actions/workflows/ci.yml)
+[![CI](https://github.com/krkhead/vuln-agent/actions/workflows/vuln-predictor-ci.yml/badge.svg)](https://github.com/krkhead/vuln-agent/actions/workflows/vuln-predictor-ci.yml)
 [![Tests](https://img.shields.io/badge/tests-46%20passing-brightgreen)](advanced_predictor/tests/)
 [![Models](https://img.shields.io/badge/models-XGBoost%20%2B%20RF-blue)](advanced_predictor/training/)
 [![API](https://img.shields.io/badge/API-FastAPI-009688)](advanced_predictor/api.py)
