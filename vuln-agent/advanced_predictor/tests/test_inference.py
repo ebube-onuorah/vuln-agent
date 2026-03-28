@@ -9,19 +9,21 @@ from advanced_predictor.inference import VulnerabilityPredictor
 
 RISKY_DIFF = """--- a/utils.c
 +++ b/utils.c
-@@ -5,3 +5,4 @@
+@@ -5,3 +5,8 @@
  void process(char *input) {
++    char buf[64];
 +    strcpy(buf, input);
++    system(buf);
++    gets(buf);
++    sprintf(buf, "%s", input);
  }
 """
 
-SAFE_DIFF = """--- a/app.py
-+++ b/app.py
-@@ -1,3 +1,5 @@
- def calculate(x, y):
-+    if not isinstance(x, (int, float)):
-+        raise TypeError("x must be numeric")
-     return x + y
+SAFE_DIFF = """--- a/README.md
++++ b/README.md
+@@ -1,2 +1,3 @@
+ # Project
++Updated documentation for release 2.0.
 """
 
 
