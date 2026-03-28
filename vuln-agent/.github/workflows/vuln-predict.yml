@@ -1,0 +1,150 @@
+name: Vulnerability Risk Prediction
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD > pr.diff
+          echo "diff_size=$(wc -c < pr.diff)" >> $GITHUB_OUTPUT
+
+      - name: Call Vulnerability Predictor API
+        id: predict
+        env:
+          PREDICTOR_API_URL: ${{ secrets.PREDICTOR_API_URL }}
+        run: |
+          python - <<'EOF'
+          import json, requests, os, sys
+
+          api_url = os.environ.get("PREDICTOR_API_URL", "").rstrip("/")
+          if not api_url:
+              print("PREDICTOR_API_URL not set — skipping prediction")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write("risk_score=0\nrisk_percent=N/A\nprediction=unknown\nconfidence=low\n")
+              sys.exit(0)
+
+          # Read PR diff
+          with open("pr.diff", "r", errors="ignore") as f:
+              diff_text = f.read()
+
+          if not diff_text.strip():
+              print("Empty diff — skipping prediction")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write("risk_score=0\nrisk_percent=0%\nprediction=benign\nconfidence=high\n")
+              sys.exit(0)
+
+          # Call predict endpoint
+          try:
+              resp = requests.post(
+                  f"{api_url}/predict",
+                  json={
+                      "diff": diff_text,
+                      "repo": "${{ github.repository }}",
+                      "commit_id": "${{ github.event.pull_request.head.sha }}"
+                  },
+                  timeout=30
+              )
+              resp.raise_for_status()
+              result = resp.json()
+          except Exception as e:
+              print(f"API call failed: {e}")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write("risk_score=0\nrisk_percent=N/A\nprediction=unknown\nconfidence=low\n")
+              sys.exit(0)
+
+          # Write outputs
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"risk_score={result['risk_score']}\n")
+              f.write(f"risk_percent={result['risk_percent']}\n")
+              f.write(f"prediction={result['prediction']}\n")
+              f.write(f"confidence={result['confidence']}\n")
+              f.write(f"has_dangerous_apis={result['features'].get('has_dangerous_apis', False)}\n")
+              f.write(f"entropy={result['features'].get('entropy', 0)}\n")
+
+          # Print to logs
+          print(json.dumps(result, indent=2))
+          EOF
+
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const riskScore = parseFloat('${{ steps.predict.outputs.risk_score }}') || 0;
+            const riskPercent = '${{ steps.predict.outputs.risk_percent }}' || 'N/A';
+            const prediction = '${{ steps.predict.outputs.prediction }}' || 'unknown';
+            const confidence = '${{ steps.predict.outputs.confidence }}' || 'low';
+            const hasDangerousApis = '${{ steps.predict.outputs.has_dangerous_apis }}' === 'True';
+            const entropy = parseFloat('${{ steps.predict.outputs.entropy }}') || 0;
+
+            // Risk icon
+            let icon = '🟢';
+            let header = 'Low Risk';
+            if (riskScore >= 0.7) { icon = '🔴'; header = 'High Risk'; }
+            else if (riskScore >= 0.4) { icon = '🟡'; header = 'Medium Risk'; }
+
+            // Build comment
+            let body = `## ${icon} Vulnerability Risk: ${header}\n\n`;
+            body += `| Metric | Value |\n|--------|-------|\n`;
+            body += `| Risk Score | **${riskPercent}** |\n`;
+            body += `| Prediction | ${prediction === 'vulnerable' ? '⚠️ Vulnerable' : '✅ Benign'} |\n`;
+            body += `| Confidence | ${confidence} |\n`;
+            body += `| Dangerous APIs | ${hasDangerousApis ? '⚠️ Detected' : '✅ None'} |\n`;
+            body += `| Code Entropy | ${entropy.toFixed(3)} |\n\n`;
+
+            if (prediction === 'vulnerable' || riskScore >= 0.5) {
+              body += `### Recommendations\n`;
+              body += `- Review all API calls in this diff for unsafe patterns\n`;
+              body += `- Run \`python advanced_predictor/inference.py\` locally for detailed analysis\n`;
+              body += `- Consider requesting an additional security review\n\n`;
+            }
+
+            body += `<sub>Powered by [Advanced Vulnerability Predictor](https://github.com/${{ github.repository }}) | `;
+            body += `Models: XGBoost + Random Forest | Commit: \`${{ github.event.pull_request.head.sha }}\`</sub>`;
+
+            // Delete previous bot comments
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            for (const comment of comments) {
+              if (comment.user.type === 'Bot' && comment.body.includes('Vulnerability Risk')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+
+            // Post new comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });

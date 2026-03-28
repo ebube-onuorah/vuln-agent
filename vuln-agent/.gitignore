@@ -1,14 +1,45 @@
+# Environment
 .env
 .env.local
+.env*.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+*.log
+
+# VulnAgent runtime
 cache/
 reports/*
 !reports/DEMO_Vulnerability_Report.xlsx
-__pycache__/
-*.pyc
-*.log
 *.tmp.xlsx
-.venv/
-venv/
-.DS_Store
 *.db
-.pytest_cache/
+
+# ML models (large binaries — regenerate with train.py)
+advanced_predictor/training/models/*.pkl
+advanced_predictor/training/models/*.h5
+advanced_predictor/training/data/models/
+
+# Real datasets (large — download separately)
+advanced_predictor/training/data/big_vul.csv
+
+# Keep sample + metrics
+!advanced_predictor/training/data/big_vul_sample.csv
+!advanced_predictor/training/models/metrics.json
+
+# Next.js dashboard
+dashboard/.next/
+dashboard/node_modules/
+dashboard/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+*.claude/settings.local.json

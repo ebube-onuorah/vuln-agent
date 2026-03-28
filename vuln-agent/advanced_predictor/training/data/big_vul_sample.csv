@@ -1,0 +1,325 @@
+commit_id,repo,author,date,diff,vuln
+abc1234,openssl/openssl,alice,2021-01-15,"--- a/crypto/buffer.c
++++ b/crypto/buffer.c
+@@ -100,7 +100,9 @@
+-    char *data = malloc(size);
++    char *data = malloc(size);
++    strcpy(data, input);  // Buffer overflow vulnerability
+     return data;
+",1
+def5678,django/django,bob,2021-02-20,"--- a/django/views.py
++++ b/django/views.py
+@@ -45,3 +45,8 @@
+ def get_user(request):
+     user_id = request.GET.get('id')
++    # Input validation added
++    if not user_id.isdigit():
++        raise ValueError('Invalid user ID')
+     user = User.objects.get(id=user_id)
+",0
+ghi9012,python/cpython,charlie,2021-03-10,"--- a/Modules/socketmodule.c
++++ b/Modules/socketmodule.c
+@@ -200,5 +200,6 @@
+ int socket_connect(struct socket *s, char *addr) {
+-    return system(addr);  // Command injection
++    // Fixed: use proper socket API
++    return socket_connect_safe(addr);
+ }
+",1
+jkl3456,nodejs/node,diana,2021-04-05,"--- a/lib/crypto.js
++++ b/lib/crypto.js
+@@ -50,4 +50,6 @@
+ function encrypt(key, plaintext) {
+     const cipher = crypto.createCipher('aes-256-cbc', key);
++    // Proper key derivation added
++    const derived = crypto.pbkdf2(key, salt, 100000, 32, 'sha256');
+-    return cipher.update(plaintext, 'utf8', 'hex');
+",0
+syn00000,repo0,author0,2021-01-01,"Sample diff #0
++Added 0 lines
+-Removed 0 lines",1
+syn00001,repo1,author1,2021-02-02,"Sample diff #1
++Added 1 lines
+-Removed 1 lines",0
+syn00002,repo2,author2,2021-03-03,"Sample diff #2
++Added 2 lines
+-Removed 2 lines",0
+syn00003,repo3,author3,2021-04-04,"Sample diff #3
++Added 3 lines
+-Removed 3 lines",1
+syn00004,repo4,author4,2021-05-05,"Sample diff #4
++Added 4 lines
+-Removed 4 lines",0
+syn00005,repo0,author5,2021-06-06,"Sample diff #5
++Added 5 lines
+-Removed 0 lines",0
+syn00006,repo1,author6,2021-07-07,"Sample diff #6
++Added 6 lines
+-Removed 1 lines",1
+syn00007,repo2,author7,2021-08-08,"Sample diff #7
++Added 7 lines
+-Removed 2 lines",0
+syn00008,repo3,author8,2021-09-09,"Sample diff #8
++Added 8 lines
+-Removed 3 lines",0
+syn00009,repo4,author9,2021-10-10,"Sample diff #9
++Added 9 lines
+-Removed 4 lines",1
+syn00010,repo0,author0,2021-11-11,"Sample diff #10
++Added 10 lines
+-Removed 0 lines",0
+syn00011,repo1,author1,2021-12-12,"Sample diff #11
++Added 11 lines
+-Removed 1 lines",0
+syn00012,repo2,author2,2021-01-13,"Sample diff #12
++Added 12 lines
+-Removed 2 lines",1
+syn00013,repo3,author3,2021-02-14,"Sample diff #13
++Added 13 lines
+-Removed 3 lines",0
+syn00014,repo4,author4,2021-03-15,"Sample diff #14
++Added 14 lines
+-Removed 4 lines",0
+syn00015,repo0,author5,2021-04-16,"Sample diff #15
++Added 15 lines
+-Removed 0 lines",1
+syn00016,repo1,author6,2021-05-17,"Sample diff #16
++Added 16 lines
+-Removed 1 lines",0
+syn00017,repo2,author7,2021-06-18,"Sample diff #17
++Added 17 lines
+-Removed 2 lines",0
+syn00018,repo3,author8,2021-07-19,"Sample diff #18
++Added 18 lines
+-Removed 3 lines",1
+syn00019,repo4,author9,2021-08-20,"Sample diff #19
++Added 19 lines
+-Removed 4 lines",0
+syn00020,repo0,author0,2021-09-21,"Sample diff #20
++Added 20 lines
+-Removed 0 lines",0
+syn00021,repo1,author1,2021-10-22,"Sample diff #21
++Added 21 lines
+-Removed 1 lines",1
+syn00022,repo2,author2,2021-11-23,"Sample diff #22
++Added 22 lines
+-Removed 2 lines",0
+syn00023,repo3,author3,2021-12-24,"Sample diff #23
++Added 23 lines
+-Removed 3 lines",0
+syn00024,repo4,author4,2021-01-25,"Sample diff #24
++Added 24 lines
+-Removed 4 lines",1
+syn00025,repo0,author5,2021-02-26,"Sample diff #25
++Added 25 lines
+-Removed 0 lines",0
+syn00026,repo1,author6,2021-03-27,"Sample diff #26
++Added 26 lines
+-Removed 1 lines",0
+syn00027,repo2,author7,2021-04-28,"Sample diff #27
++Added 27 lines
+-Removed 2 lines",1
+syn00028,repo3,author8,2021-05-01,"Sample diff #28
++Added 28 lines
+-Removed 3 lines",0
+syn00029,repo4,author9,2021-06-02,"Sample diff #29
++Added 29 lines
+-Removed 4 lines",0
+syn00030,repo0,author0,2021-07-03,"Sample diff #30
++Added 30 lines
+-Removed 0 lines",1
+syn00031,repo1,author1,2021-08-04,"Sample diff #31
++Added 31 lines
+-Removed 1 lines",0
+syn00032,repo2,author2,2021-09-05,"Sample diff #32
++Added 32 lines
+-Removed 2 lines",0
+syn00033,repo3,author3,2021-10-06,"Sample diff #33
++Added 33 lines
+-Removed 3 lines",1
+syn00034,repo4,author4,2021-11-07,"Sample diff #34
++Added 34 lines
+-Removed 4 lines",0
+syn00035,repo0,author5,2021-12-08,"Sample diff #35
++Added 35 lines
+-Removed 0 lines",0
+syn00036,repo1,author6,2021-01-09,"Sample diff #36
++Added 36 lines
+-Removed 1 lines",1
+syn00037,repo2,author7,2021-02-10,"Sample diff #37
++Added 37 lines
+-Removed 2 lines",0
+syn00038,repo3,author8,2021-03-11,"Sample diff #38
++Added 38 lines
+-Removed 3 lines",0
+syn00039,repo4,author9,2021-04-12,"Sample diff #39
++Added 39 lines
+-Removed 4 lines",1
+syn00040,repo0,author0,2021-05-13,"Sample diff #40
++Added 40 lines
+-Removed 0 lines",0
+syn00041,repo1,author1,2021-06-14,"Sample diff #41
++Added 41 lines
+-Removed 1 lines",0
+syn00042,repo2,author2,2021-07-15,"Sample diff #42
++Added 42 lines
+-Removed 2 lines",1
+syn00043,repo3,author3,2021-08-16,"Sample diff #43
++Added 43 lines
+-Removed 3 lines",0
+syn00044,repo4,author4,2021-09-17,"Sample diff #44
++Added 44 lines
+-Removed 4 lines",0
+syn00045,repo0,author5,2021-10-18,"Sample diff #45
++Added 45 lines
+-Removed 0 lines",1
+syn00046,repo1,author6,2021-11-19,"Sample diff #46
++Added 46 lines
+-Removed 1 lines",0
+syn00047,repo2,author7,2021-12-20,"Sample diff #47
++Added 47 lines
+-Removed 2 lines",0
+syn00048,repo3,author8,2021-01-21,"Sample diff #48
++Added 48 lines
+-Removed 3 lines",1
+syn00049,repo4,author9,2021-02-22,"Sample diff #49
++Added 49 lines
+-Removed 4 lines",0
+syn00050,repo0,author0,2021-03-23,"Sample diff #50
++Added 50 lines
+-Removed 0 lines",0
+syn00051,repo1,author1,2021-04-24,"Sample diff #51
++Added 51 lines
+-Removed 1 lines",1
+syn00052,repo2,author2,2021-05-25,"Sample diff #52
++Added 52 lines
+-Removed 2 lines",0
+syn00053,repo3,author3,2021-06-26,"Sample diff #53
++Added 53 lines
+-Removed 3 lines",0
+syn00054,repo4,author4,2021-07-27,"Sample diff #54
++Added 54 lines
+-Removed 4 lines",1
+syn00055,repo0,author5,2021-08-28,"Sample diff #55
++Added 55 lines
+-Removed 0 lines",0
+syn00056,repo1,author6,2021-09-01,"Sample diff #56
++Added 56 lines
+-Removed 1 lines",0
+syn00057,repo2,author7,2021-10-02,"Sample diff #57
++Added 57 lines
+-Removed 2 lines",1
+syn00058,repo3,author8,2021-11-03,"Sample diff #58
++Added 58 lines
+-Removed 3 lines",0
+syn00059,repo4,author9,2021-12-04,"Sample diff #59
++Added 59 lines
+-Removed 4 lines",0
+syn00060,repo0,author0,2021-01-05,"Sample diff #60
++Added 60 lines
+-Removed 0 lines",1
+syn00061,repo1,author1,2021-02-06,"Sample diff #61
++Added 61 lines
+-Removed 1 lines",0
+syn00062,repo2,author2,2021-03-07,"Sample diff #62
++Added 62 lines
+-Removed 2 lines",0
+syn00063,repo3,author3,2021-04-08,"Sample diff #63
++Added 63 lines
+-Removed 3 lines",1
+syn00064,repo4,author4,2021-05-09,"Sample diff #64
++Added 64 lines
+-Removed 4 lines",0
+syn00065,repo0,author5,2021-06-10,"Sample diff #65
++Added 65 lines
+-Removed 0 lines",0
+syn00066,repo1,author6,2021-07-11,"Sample diff #66
++Added 66 lines
+-Removed 1 lines",1
+syn00067,repo2,author7,2021-08-12,"Sample diff #67
++Added 67 lines
+-Removed 2 lines",0
+syn00068,repo3,author8,2021-09-13,"Sample diff #68
++Added 68 lines
+-Removed 3 lines",0
+syn00069,repo4,author9,2021-10-14,"Sample diff #69
++Added 69 lines
+-Removed 4 lines",1
+syn00070,repo0,author0,2021-11-15,"Sample diff #70
++Added 70 lines
+-Removed 0 lines",0
+syn00071,repo1,author1,2021-12-16,"Sample diff #71
++Added 71 lines
+-Removed 1 lines",0
+syn00072,repo2,author2,2021-01-17,"Sample diff #72
++Added 72 lines
+-Removed 2 lines",1
+syn00073,repo3,author3,2021-02-18,"Sample diff #73
++Added 73 lines
+-Removed 3 lines",0
+syn00074,repo4,author4,2021-03-19,"Sample diff #74
++Added 74 lines
+-Removed 4 lines",0
+syn00075,repo0,author5,2021-04-20,"Sample diff #75
++Added 75 lines
+-Removed 0 lines",1
+syn00076,repo1,author6,2021-05-21,"Sample diff #76
++Added 76 lines
+-Removed 1 lines",0
+syn00077,repo2,author7,2021-06-22,"Sample diff #77
++Added 77 lines
+-Removed 2 lines",0
+syn00078,repo3,author8,2021-07-23,"Sample diff #78
++Added 78 lines
+-Removed 3 lines",1
+syn00079,repo4,author9,2021-08-24,"Sample diff #79
++Added 79 lines
+-Removed 4 lines",0
+syn00080,repo0,author0,2021-09-25,"Sample diff #80
++Added 80 lines
+-Removed 0 lines",0
+syn00081,repo1,author1,2021-10-26,"Sample diff #81
++Added 81 lines
+-Removed 1 lines",1
+syn00082,repo2,author2,2021-11-27,"Sample diff #82
++Added 82 lines
+-Removed 2 lines",0
+syn00083,repo3,author3,2021-12-28,"Sample diff #83
++Added 83 lines
+-Removed 3 lines",0
+syn00084,repo4,author4,2021-01-01,"Sample diff #84
++Added 84 lines
+-Removed 4 lines",1
+syn00085,repo0,author5,2021-02-02,"Sample diff #85
++Added 85 lines
+-Removed 0 lines",0
+syn00086,repo1,author6,2021-03-03,"Sample diff #86
++Added 86 lines
+-Removed 1 lines",0
+syn00087,repo2,author7,2021-04-04,"Sample diff #87
++Added 87 lines
+-Removed 2 lines",1
+syn00088,repo3,author8,2021-05-05,"Sample diff #88
++Added 88 lines
+-Removed 3 lines",0
+syn00089,repo4,author9,2021-06-06,"Sample diff #89
++Added 89 lines
+-Removed 4 lines",0
+syn00090,repo0,author0,2021-07-07,"Sample diff #90
++Added 90 lines
+-Removed 0 lines",1
+syn00091,repo1,author1,2021-08-08,"Sample diff #91
++Added 91 lines
+-Removed 1 lines",0
+syn00092,repo2,author2,2021-09-09,"Sample diff #92
++Added 92 lines
+-Removed 2 lines",0
+syn00093,repo3,author3,2021-10-10,"Sample diff #93
++Added 93 lines
+-Removed 3 lines",1
+syn00094,repo4,author4,2021-11-11,"Sample diff #94
++Added 94 lines
+-Removed 4 lines",0
+syn00095,repo0,author5,2021-12-12,"Sample diff #95
++Added 95 lines
+-Removed 0 lines",0
