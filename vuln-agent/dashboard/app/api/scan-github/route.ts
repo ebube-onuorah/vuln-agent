@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const API_URL = process.env.PREDICTOR_API_URL ?? "http://localhost:8000";
+const API_KEY = process.env.PREDICTOR_API_KEY ?? "";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -14,7 +15,10 @@ export async function POST(req: NextRequest) {
   try {
     const upstream = await fetch(`${API_URL}/scan/github`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(API_KEY && { "X-API-Key": API_KEY }),
+      },
       body: JSON.stringify({ pr_url: body.pr_url }),
       signal: AbortSignal.timeout(30_000),
     });

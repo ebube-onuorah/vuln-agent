@@ -11,8 +11,12 @@ Deploy to Vercel: see vercel.json
 
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import sys
 import os
 
@@ -24,11 +28,16 @@ from explainability import get_explainer
 from github_client import fetch_pr_diff, parse_pr_url
 from auth import require_api_key
 
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(
     title="Advanced Vulnerability Predictor",
     description="ML-powered code vulnerability prediction from git diffs",
     version="1.0.0",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -116,7 +125,8 @@ async def health():
 
 
 @app.post("/predict", response_model=PredictResponse, tags=["Prediction"], dependencies=[_AUTH])
-async def predict(request: PredictRequest):
+@limiter.limit("30/minute")
+async def predict(request: Request, body: PredictRequest):
     """
     Predict vulnerability risk from a git diff.
 
@@ -130,7 +140,7 @@ async def predict(request: PredictRequest):
             detail="No models loaded. Ensure model files exist in training/models/",
         )
 
-    result = predictor.predict(request.diff)
+    result = predictor.predict(body.diff)
 
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -142,20 +152,21 @@ async def predict(request: PredictRequest):
         prediction=result["prediction"],
         model_scores=result["model_scores"],
         features=result["features"],
-        commit_id=request.commit_id,
-        repo=request.repo,
+        commit_id=body.commit_id,
+        repo=body.repo,
     )
 
 
 @app.post("/explain", response_model=ExplainResponse, tags=["Explainability"], dependencies=[_AUTH])
-async def explain(request: ExplainRequest):
+@limiter.limit("20/minute")
+async def explain(request: Request, body: ExplainRequest):
     """
     Explain why a diff was flagged as risky.
 
     Returns ranked feature contributions and plain-English explanation.
     """
     explainer = get_explainer()
-    result = explainer.explain(request.diff, model=request.model)
+    result = explainer.explain(body.diff, model=body.model)
 
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -183,7 +194,8 @@ async def explain(request: ExplainRequest):
 
 
 @app.post("/scan/github", response_model=ScanGithubResponse, tags=["Prediction"], dependencies=[_AUTH])
-async def scan_github(request: ScanGithubRequest):
+@limiter.limit("10/minute")
+async def scan_github(request: Request, body: ScanGithubRequest):
     """
     Fetch a GitHub PR diff and predict its vulnerability risk.
 
@@ -198,7 +210,7 @@ async def scan_github(request: ScanGithubRequest):
         raise HTTPException(status_code=503, detail="No models loaded.")
 
     try:
-        pr_data = fetch_pr_diff(request.pr_url)
+        pr_data = fetch_pr_diff(body.pr_url)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -228,7 +240,7 @@ async def scan_github(request: ScanGithubRequest):
         features=result["features"],
         pr={
             "title": pr_data["title"],
-            "url": request.pr_url,
+            "url": body.pr_url,
             "repo": f"{pr_data['owner']}/{pr_data['repo']}",
             "pr_number": pr_data["pr_number"],
             "author": pr_data["author"],
