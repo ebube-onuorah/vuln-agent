@@ -9,7 +9,7 @@ Run locally:
 Deploy to Vercel: see vercel.json
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from inference import get_predictor
 from explainability import get_explainer
 from github_client import fetch_pr_diff, parse_pr_url
+from auth import require_api_key
 
 app = FastAPI(
     title="Advanced Vulnerability Predictor",
@@ -93,6 +94,9 @@ class HealthResponse(BaseModel):
 
 # ─── Endpoints ─────────────────────────────────────────────────────────────────
 
+_AUTH = Depends(require_api_key)
+
+
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health():
     """Check service health and loaded models."""
@@ -111,7 +115,7 @@ async def health():
     )
 
 
-@app.post("/predict", response_model=PredictResponse, tags=["Prediction"])
+@app.post("/predict", response_model=PredictResponse, tags=["Prediction"], dependencies=[_AUTH])
 async def predict(request: PredictRequest):
     """
     Predict vulnerability risk from a git diff.
@@ -143,7 +147,7 @@ async def predict(request: PredictRequest):
     )
 
 
-@app.post("/explain", response_model=ExplainResponse, tags=["Explainability"])
+@app.post("/explain", response_model=ExplainResponse, tags=["Explainability"], dependencies=[_AUTH])
 async def explain(request: ExplainRequest):
     """
     Explain why a diff was flagged as risky.
@@ -178,7 +182,7 @@ async def explain(request: ExplainRequest):
     )
 
 
-@app.post("/scan/github", response_model=ScanGithubResponse, tags=["Prediction"])
+@app.post("/scan/github", response_model=ScanGithubResponse, tags=["Prediction"], dependencies=[_AUTH])
 async def scan_github(request: ScanGithubRequest):
     """
     Fetch a GitHub PR diff and predict its vulnerability risk.
