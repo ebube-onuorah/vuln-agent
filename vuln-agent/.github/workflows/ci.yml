@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "advanced_predictor/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "advanced_predictor/**"
+
+jobs:
+  test:
+    name: Python Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r advanced_predictor/requirements.txt httpx pytest pytest-asyncio
+
+      - name: Train models on sample data
+        run: |
+          python advanced_predictor/training/create_sample_data.py
+          python advanced_predictor/training/train.py
+
+      - name: Run tests
+        run: pytest advanced_predictor/tests/ -v --tb=short
+
+      - name: Test count summary
+        run: pytest advanced_predictor/tests/ --co -q 2>/dev/null | tail -3

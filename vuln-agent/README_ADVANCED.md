@@ -2,7 +2,8 @@
 
 > ML-powered code vulnerability detection at commit time — before CVEs are published.
 
-[![Tests](https://img.shields.io/badge/tests-34%20passing-brightgreen)](advanced_predictor/tests/)
+[![CI](https://github.com/krkhead/vuln-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/krkhead/vuln-agent/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-46%20passing-brightgreen)](advanced_predictor/tests/)
 [![Models](https://img.shields.io/badge/models-XGBoost%20%2B%20RF-blue)](advanced_predictor/training/)
 [![API](https://img.shields.io/badge/API-FastAPI-009688)](advanced_predictor/api.py)
 [![Dashboard](https://img.shields.io/badge/Dashboard-Next.js%2016-black)](dashboard/)
@@ -116,7 +117,7 @@ cd dashboard && npm install && npm run dev
 ### 5. Run tests
 ```bash
 pytest advanced_predictor/tests/ -v
-# 34 passed
+# 46 passed
 ```
 
 ---
@@ -169,10 +170,21 @@ curl -X POST http://localhost:8000/explain \
 }
 ```
 
+### `POST /scan/github`
+```bash
+curl -X POST http://localhost:8000/scan/github \
+  -H "Content-Type: application/json" \
+  -d '{"pr_url": "https://github.com/owner/repo/pull/42"}'
+```
+Returns same fields as `/predict` plus a `pr` object with title, author, base/head branch, additions/deletions.
+
 ### `GET /health`
 ```json
 { "status": "ok", "models_loaded": ["xgboost", "random_forest"], "n_features": 11 }
 ```
+
+### Authentication
+Set `API_KEY` env var to require `Authorization: Bearer <key>` or `X-API-Key: <key>` on all prediction endpoints. `/health` is always public. Unset = open mode (dev/demo).
 
 ---
 
@@ -241,14 +253,19 @@ vuln-agent/
 │   │   └── models/                   # Serialized models + scaler
 │   ├── inference.py                  # Ensemble predictor (load + run)
 │   ├── explainability.py             # SHAP TreeExplainer integration
-│   ├── api.py                        # FastAPI: /predict /explain /health
-│   └── tests/                        # 34 unit tests (pytest)
+│   ├── github_client.py              # GitHub PR diff fetcher (public + private)
+│   ├── auth.py                       # API key auth (Bearer / X-API-Key)
+│   ├── api.py                        # FastAPI: /predict /explain /scan/github /health
+│   └── tests/                        # 46 unit + integration tests (pytest)
 ├── dashboard/                        # Next.js 16 + shadcn/ui
-│   ├── app/page.tsx                  # Diff input + risk visualizer
+│   ├── app/page.tsx                  # Diff input + GitHub PR tab + risk visualizer
 │   ├── app/history/page.tsx          # Prediction history + stats
-│   └── app/api/predict/route.ts      # Proxy to FastAPI
+│   ├── app/api/predict/route.ts      # Proxy to /predict
+│   ├── app/api/explain/route.ts      # Proxy to /explain
+│   └── app/api/scan-github/route.ts  # Proxy to /scan/github
 ├── .github/workflows/
-│   └── vuln-predict.yml              # GitHub Actions PR integration
+│   ├── ci.yml                        # pytest on every push
+│   └── vuln-predict.yml              # GitHub Actions PR risk comments
 └── vercel.json                       # Vercel deployment config
 ```
 
@@ -279,8 +296,9 @@ vercel deploy --prod
 - [ ] Integrate real Big-Vul dataset (35k commits)
 - [ ] Add BERT-based code embeddings as additional features
 - [ ] Publish as GitHub Actions marketplace action
-- [ ] Add per-user API key authentication
-- [ ] Prediction history with Neon Postgres
+- [x] Add per-user API key authentication
+- [x] GitHub PR URL scanning (`/scan/github`)
+- [ ] Prediction history with Neon Postgres (currently localStorage)
 
 ---
 
