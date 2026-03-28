@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Shield, AlertTriangle, CheckCircle, Loader2, GitBranch, Code2, History } from "lucide-react";
+import { Shield, AlertTriangle, CheckCircle, Loader2, GitBranch, Code2, History, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +27,21 @@ interface PredictResult {
     cyclomatic_complexity: number;
     language_type: number;
   };
+  pr?: {
+    title: string;
+    url: string;
+    repo: string;
+    pr_number: number;
+    author: string;
+    base: string;
+    head: string;
+    files_count: number;
+    additions: number;
+    deletions: number;
+  };
 }
+
+type InputMode = "diff" | "github";
 
 const SAMPLE_RISKY = `--- a/utils.c
 +++ b/utils.c
@@ -47,7 +61,9 @@ const SAMPLE_SAFE = `--- a/app.py
      return db.query(User).filter_by(id=user_id).first()`;
 
 export default function Home() {
+  const [mode, setMode] = useState<InputMode>("diff");
   const [diff, setDiff] = useState("");
+  const [prUrl, setPrUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PredictResult | null>(null);
   const [shap, setShap] = useState<{ top_risk_factors: { factor: string; shap_value: number; feature_value: number; direction: string; severity: string }[]; explanation: string } | null>(null);
@@ -55,41 +71,68 @@ export default function Home() {
   const { history, addEntry } = usePredictionHistory();
 
   async function handlePredict() {
-    if (!diff.trim()) return;
+    const isDiff = mode === "diff";
+    if (isDiff && !diff.trim()) return;
+    if (!isDiff && !prUrl.trim()) return;
+
     setLoading(true);
     setError(null);
     setResult(null);
     setShap(null);
+
     try {
-      const res = await fetch("/api/predict", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ diff }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Prediction failed");
+      let data: PredictResult;
+      let diffForShap = diff;
+
+      if (isDiff) {
+        const res = await fetch("/api/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ diff }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Prediction failed");
+        }
+        data = await res.json();
+      } else {
+        const res = await fetch("/api/scan-github", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pr_url: prUrl.trim() }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "GitHub scan failed");
+        }
+        data = await res.json();
+        diffForShap = "";
       }
-      const data = await res.json();
+
       setResult(data);
       addEntry({
-        repo: undefined,
+        repo: data.pr?.repo ?? undefined,
         risk_score: data.risk_score,
         risk_percent: data.risk_percent,
         prediction: data.prediction,
         confidence: data.confidence,
         has_dangerous_apis: data.features.has_dangerous_apis,
-        diff_preview: diff.slice(0, 80).replace(/\n/g, " "),
+        diff_preview: data.pr
+          ? `PR #${data.pr.pr_number}: ${data.pr.title}`.slice(0, 80)
+          : diff.slice(0, 80).replace(/\n/g, " "),
       });
-      // Fetch SHAP explanation in parallel (non-blocking)
-      fetch("/api/explain", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ diff }),
-      })
-        .then((r) => r.ok ? r.json() : null)
-        .then((s) => s && setShap(s))
-        .catch(() => null);
+
+      // SHAP only available for paste-diff mode (we don't keep the full diff from GitHub in client)
+      if (isDiff && diffForShap) {
+        fetch("/api/explain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ diff: diffForShap }),
+        })
+          .then((r) => r.ok ? r.json() : null)
+          .then((s) => s && setShap(s))
+          .catch(() => null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
@@ -135,44 +178,84 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Input */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-medium text-zinc-300">
-                <Code2 className="w-4 h-4" />
-                Git Diff
-              </div>
-              <div className="flex gap-3 text-xs">
-                <button
-                  onClick={() => setDiff(SAMPLE_RISKY)}
-                  className="text-red-400 hover:text-red-300 transition-colors"
-                >
-                  Load risky sample
-                </button>
-                <span className="text-zinc-700">·</span>
-                <button
-                  onClick={() => setDiff(SAMPLE_SAFE)}
-                  className="text-green-400 hover:text-green-300 transition-colors"
-                >
-                  Load safe sample
-                </button>
-              </div>
+            {/* Mode tabs */}
+            <div className="flex rounded-lg border border-zinc-800 overflow-hidden text-xs">
+              <button
+                onClick={() => { setMode("diff"); setResult(null); setShap(null); setError(null); }}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 py-2 transition-colors",
+                  mode === "diff"
+                    ? "bg-zinc-800 text-zinc-100"
+                    : "text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                <Code2 className="w-3.5 h-3.5" /> Paste Diff
+              </button>
+              <button
+                onClick={() => { setMode("github"); setResult(null); setShap(null); setError(null); }}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 py-2 transition-colors border-l border-zinc-800",
+                  mode === "github"
+                    ? "bg-zinc-800 text-zinc-100"
+                    : "text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                <Github className="w-3.5 h-3.5" /> GitHub PR
+              </button>
             </div>
 
-            <textarea
-              value={diff}
-              onChange={(e) => setDiff(e.target.value)}
-              placeholder={"Paste your git diff here...\n\n--- a/file.c\n+++ b/file.c\n@@ -1 +1,2 @@\n+    strcpy(buf, input);"}
-              className="h-64 w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-600 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-            />
+            {mode === "diff" ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">Paste a git diff below</span>
+                  <div className="flex gap-3 text-xs">
+                    <button onClick={() => setDiff(SAMPLE_RISKY)} className="text-red-400 hover:text-red-300 transition-colors">
+                      Load risky sample
+                    </button>
+                    <span className="text-zinc-700">·</span>
+                    <button onClick={() => setDiff(SAMPLE_SAFE)} className="text-green-400 hover:text-green-300 transition-colors">
+                      Load safe sample
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  value={diff}
+                  onChange={(e) => setDiff(e.target.value)}
+                  placeholder={"Paste your git diff here...\n\n--- a/file.c\n+++ b/file.c\n@@ -1 +1,2 @@\n+    strcpy(buf, input);"}
+                  className="h-64 w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-600 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                />
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-zinc-500">
+                  Enter a public GitHub PR URL. Private repos require{" "}
+                  <code className="text-zinc-400">GITHUB_TOKEN</code> on the server.
+                </p>
+                <input
+                  value={prUrl}
+                  onChange={(e) => setPrUrl(e.target.value)}
+                  placeholder="https://github.com/owner/repo/pull/123"
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-600 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                />
+                <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3 space-y-1 text-xs text-zinc-500">
+                  <p className="text-zinc-400 font-medium mb-1">Also accepted:</p>
+                  <p><code className="text-zinc-400">owner/repo#123</code></p>
+                  <p><code className="text-zinc-400">github.com/owner/repo/pull/123</code></p>
+                </div>
+              </>
+            )}
 
             <Button
               onClick={handlePredict}
-              disabled={loading || !diff.trim()}
+              disabled={loading || (mode === "diff" ? !diff.trim() : !prUrl.trim())}
               className="w-full"
             >
               {loading ? (
                 <><Loader2 className="w-4 h-4 animate-spin mr-2" />Analyzing...</>
-              ) : (
+              ) : mode === "diff" ? (
                 <><Shield className="w-4 h-4 mr-2" />Predict Risk</>
+              ) : (
+                <><Github className="w-4 h-4 mr-2" />Scan PR</>
               )}
             </Button>
 
@@ -193,6 +276,29 @@ export default function Home() {
 
             {result && (
               <>
+                {/* PR metadata */}
+                {result.pr && (
+                  <Card>
+                    <CardContent className="pt-4 pb-3">
+                      <div className="flex items-start gap-2">
+                        <Github className="w-3.5 h-3.5 text-zinc-500 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-zinc-300 truncate">{result.pr.title}</p>
+                          <p className="text-xs text-zinc-500 mt-0.5">
+                            {result.pr.repo} · PR #{result.pr.pr_number}
+                            {result.pr.author && <> · @{result.pr.author}</>}
+                          </p>
+                          <p className="text-xs text-zinc-600 mt-0.5 font-mono">
+                            {result.pr.base} ← {result.pr.head} · {result.pr.files_count} files ·{" "}
+                            <span className="text-green-600">+{result.pr.additions}</span>{" "}
+                            <span className="text-red-600">-{result.pr.deletions}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Risk card */}
                 <Card className={cn(
                   "border",

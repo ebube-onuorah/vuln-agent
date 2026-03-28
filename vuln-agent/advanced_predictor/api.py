@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from inference import get_predictor
 from explainability import get_explainer
+from github_client import fetch_pr_diff, parse_pr_url
 
 app = FastAPI(
     title="Advanced Vulnerability Predictor",
@@ -67,6 +68,20 @@ class ExplainResponse(BaseModel):
     top_risk_factors: list
     feature_values: Dict[str, Any]
     explanation: str
+
+
+class ScanGithubRequest(BaseModel):
+    pr_url: str = Field(..., description="GitHub PR URL or 'owner/repo#123'")
+
+
+class ScanGithubResponse(BaseModel):
+    risk_score: float
+    risk_percent: str
+    confidence: str
+    prediction: str
+    model_scores: Dict[str, float]
+    features: Dict[str, Any]
+    pr: Dict[str, Any]
 
 
 class HealthResponse(BaseModel):
@@ -160,6 +175,65 @@ async def explain(request: ExplainRequest):
         top_risk_factors=risk_factors,
         feature_values={c["feature"]: c["feature_value"] for c in result["all_contributions"]},
         explanation=result["plain_english"],
+    )
+
+
+@app.post("/scan/github", response_model=ScanGithubResponse, tags=["Prediction"])
+async def scan_github(request: ScanGithubRequest):
+    """
+    Fetch a GitHub PR diff and predict its vulnerability risk.
+
+    Accepts URLs like:
+      - https://github.com/owner/repo/pull/123
+      - owner/repo#123
+
+    Public repos work without auth. Set GITHUB_TOKEN env var for private repos.
+    """
+    predictor = get_predictor()
+    if not predictor.is_ready():
+        raise HTTPException(status_code=503, detail="No models loaded.")
+
+    try:
+        pr_data = fetch_pr_diff(request.pr_url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        msg = str(e)
+        if "404" in msg:
+            raise HTTPException(
+                status_code=404,
+                detail="PR not found. Check the URL and ensure the repo is public (or set GITHUB_TOKEN).",
+            )
+        if "403" in msg:
+            raise HTTPException(
+                status_code=429,
+                detail="GitHub API rate limit hit. Set GITHUB_TOKEN to increase quota.",
+            )
+        raise HTTPException(status_code=502, detail=f"GitHub fetch failed: {msg}")
+
+    result = predictor.predict(pr_data["diff"])
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    return ScanGithubResponse(
+        risk_score=result["risk_score"],
+        risk_percent=result["risk_percent"],
+        confidence=result["confidence"],
+        prediction=result["prediction"],
+        model_scores=result["model_scores"],
+        features=result["features"],
+        pr={
+            "title": pr_data["title"],
+            "url": request.pr_url,
+            "repo": f"{pr_data['owner']}/{pr_data['repo']}",
+            "pr_number": pr_data["pr_number"],
+            "author": pr_data["author"],
+            "base": pr_data["base"],
+            "head": pr_data["head"],
+            "files_count": pr_data["files_count"],
+            "additions": pr_data["additions"],
+            "deletions": pr_data["deletions"],
+        },
     )
 
 
